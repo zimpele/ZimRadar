@@ -17,12 +17,15 @@ def crop_and_normalize(src_path: str, dst_path: str) -> None:
         data = np.clip(data, 0, REFLECTANCE_MAX) / REFLECTANCE_MAX
 
         profile = src.profile.copy()
+        scale_x = src.width / TILE_SIZE
+        scale_y = src.height / TILE_SIZE
+        scaled_transform = src.transform * src.transform.scale(scale_x, scale_y)
         profile.update(
             count=3,
             height=TILE_SIZE,
             width=TILE_SIZE,
             dtype="float32",
-            transform=src.transform,
+            transform=scaled_transform,
         )
 
     with rasterio.open(dst_path, "w", **profile) as dst:

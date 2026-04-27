@@ -1,3 +1,4 @@
+import asyncio
 import logging
 import tempfile
 import os
@@ -47,7 +48,8 @@ async def ingest_sentinel2_flow(region_id: int, date_from: str, date_to: str) ->
 
     try:
         products = await with_retry(
-            lambda: search_sentinel2_tiles(
+            lambda: asyncio.to_thread(
+                search_sentinel2_tiles,
                 bbox, date_from, date_to,
                 settings.sentinelsat_user, settings.sentinelsat_pass,
             )
