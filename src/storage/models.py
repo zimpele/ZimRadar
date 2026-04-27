@@ -1,7 +1,7 @@
 from datetime import datetime, date
 from typing import Any
 from uuid import UUID
-from sqlalchemy import Integer, Float, Boolean, Text, Date, DateTime, ForeignKey, UniqueConstraint, CheckConstraint
+from sqlalchemy import Integer, Float, Boolean, Text, Date, DateTime, ForeignKey, UniqueConstraint, CheckConstraint, text as sa_text
 from sqlalchemy.dialects.postgresql import JSONB, UUID as PG_UUID
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 from pgvector.sqlalchemy import Vector
@@ -16,8 +16,8 @@ class Region(Base):
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     name: Mapped[str] = mapped_column(Text, nullable=False)
     bbox: Mapped[dict[str, Any]] = mapped_column(JSONB, nullable=False)
-    active: Mapped[bool] = mapped_column(Boolean, default=True)
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    active: Mapped[bool] = mapped_column(Boolean, default=True, server_default=sa_text("true"))
+    created_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), server_default=sa_text("now()"))
 
 
 class Sentinel2Tile(Base):
