@@ -15,9 +15,8 @@ _session_factory = None
 
 def _ensure_initialized():
     global _engine, _session_factory
-    if _engine is None:
-        _engine = _make_engine()
-        _session_factory = async_sessionmaker(_engine, expire_on_commit=False)
+    _engine = _make_engine()
+    _session_factory = async_sessionmaker(_engine, expire_on_commit=False)
 
 
 @asynccontextmanager

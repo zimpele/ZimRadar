@@ -58,7 +58,7 @@ with col_map:
         m = leafmap.Map(center=[37.5, -96], zoom=4)
 
         for region in regions:
-            bbox = region["bbox"]
+            bbox = region.get("bbox") or {}
             tier = region.get("risk_tier", "unknown")
             color = {
                 "critical": "red",
@@ -108,13 +108,10 @@ with col_report:
             )
 
         if st.button("▶ Run Assessment", type="primary"):
-            with st.status("Running ZimRadar pipeline...", expanded=True) as status:
-                st.write("Ingesting latest satellite data...")
-                st.write("Running segmentation + depth estimation...")
-                st.write("Forecasting with Chronos...")
-                st.write("Generating report with Gemma...")
-                status.update(label="Pipeline complete", state="complete")
-            st.rerun()
+            st.info(
+                "Pipeline orchestration will be wired in Phase 3. "
+                "Run `ingest_sentinel2_flow`, `ingest_noaa_flow`, and the LangGraph agents manually for now."
+            )
 
         report = asyncio.run(get_report(region["id"]))
         if report:
@@ -125,7 +122,7 @@ with col_report:
                 st.caption("**Sources:** " + " · ".join(
                     f"[{i+1}] {c}" for i, c in enumerate(report["citations"])
                 ))
-            if report.get("factuality_score"):
+            if report.get("factuality_score") is not None:
                 st.caption(f"Factuality score: {report['factuality_score']:.2f}")
         else:
             st.info("No report yet for this region. Click **Run Assessment** to generate one.")
