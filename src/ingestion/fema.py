@@ -1,4 +1,5 @@
 import httpx
+import json
 import logging
 from datetime import datetime, date
 from prefect import flow
@@ -99,6 +100,40 @@ async def ingest_fema_flow(last_refresh: str | None = None) -> None:
             await upsert_declarations(normalized, session)
 
         logger.info(f"Upserted {len(normalized)} declarations")
+
+        # Chunk and embed FEMA declaration titles for RAG
+        from src.rag.chunking import chunk_text
+        from src.rag.embed import TextEmbedder
+        from sqlalchemy import text as sql_text
+
+        embedder = TextEmbedder()
+        async with get_async_session() as session:
+            rows = await session.execute(
+                sql_text(
+                    "SELECT disaster_number, declaration_title FROM fema_declarations "
+                    "WHERE declaration_title IS NOT NULL"
+                )
+            )
+            for disaster_number, title in rows.fetchall():
+                chunks = chunk_text(title)
+                for idx, chunk in enumerate(chunks):
+                    embedding = embedder.embed(chunk)
+                    await session.execute(
+                        sql_text("""
+                            INSERT INTO text_embeddings
+                                (source_type, source_id, chunk_text, chunk_index, embedding, metadata)
+                            VALUES
+                                ('fema', :source_id, :chunk_text, :chunk_index, :embedding, :metadata::jsonb)
+                            ON CONFLICT (source_type, source_id, chunk_index) DO NOTHING
+                        """),
+                        {
+                            "source_id": disaster_number,
+                            "chunk_text": chunk,
+                            "chunk_index": idx,
+                            "embedding": embedding,
+                            "metadata": json.dumps({"disaster_number": disaster_number}),
+                        },
+                    )
     except Exception as exc:
         await log_failure("ingest_fema", str(exc))
         raise
