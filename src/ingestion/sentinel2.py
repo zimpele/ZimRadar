@@ -63,7 +63,7 @@ async def ingest_sentinel2_flow(region_id: int, date_from: str, date_to: str) ->
 
         for product in products:
             with tempfile.TemporaryDirectory() as tmpdir:
-                api.download(product["uuid"], directory_path=tmpdir)
+                await asyncio.to_thread(api.download, product["uuid"], directory_path=tmpdir)
                 raw_files = list(Path(tmpdir).glob("**/*.SAFE"))
                 if not raw_files:
                     continue
