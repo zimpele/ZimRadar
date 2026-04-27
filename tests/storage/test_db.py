@@ -13,9 +13,17 @@ async def test_pgvector_extension_enabled(db_session):
 @pytest.mark.asyncio
 async def test_all_tables_exist(db_session):
     expected = {
-        "regions", "sentinel2_tiles", "noaa_observations", "fema_declarations",
-        "segmentation_results", "risk_assessments", "forecasts", "reports",
-        "image_embeddings", "text_embeddings", "failed_ingestion",
+        "regions",
+        "sentinel2_tiles",
+        "noaa_observations",
+        "fema_declarations",
+        "segmentation_results",
+        "risk_assessments",
+        "forecasts",
+        "reports",
+        "image_embeddings",
+        "text_embeddings",
+        "failed_ingestion",
     }
     result = await db_session.execute(
         text("SELECT tablename FROM pg_tables WHERE schemaname = 'public'")

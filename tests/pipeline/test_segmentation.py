@@ -14,15 +14,24 @@ def test_segment_tile_returns_area_stats(tmp_path):
     data = np.random.rand(3, 256, 256).astype(np.float32)
     tile_path = tmp_path / "tile.tif"
     with rasterio.open(
-        str(tile_path), "w", driver="GTiff",
-        height=256, width=256, count=3, dtype="float32",
-        crs="EPSG:4326", transform=from_bounds(0, 0, 1, 1, 256, 256)
+        str(tile_path),
+        "w",
+        driver="GTiff",
+        height=256,
+        width=256,
+        count=3,
+        dtype="float32",
+        crs="EPSG:4326",
+        transform=from_bounds(0, 0, 1, 1, 256, 256),
     ) as dst:
         dst.write(data)
 
-    with patch("src.pipeline.segmentation.SegformerForSemanticSegmentation.from_pretrained") as mock_model_cls, \
-         patch("src.pipeline.segmentation.SegformerImageProcessor.from_pretrained") as mock_proc_cls:
-
+    with (
+        patch(
+            "src.pipeline.segmentation.SegformerForSemanticSegmentation.from_pretrained"
+        ) as mock_model_cls,
+        patch("src.pipeline.segmentation.SegformerImageProcessor.from_pretrained") as mock_proc_cls,
+    ):
         mock_model = MagicMock()
         mock_model_cls.return_value = mock_model
         mock_proc = MagicMock()
@@ -30,6 +39,7 @@ def test_segment_tile_returns_area_stats(tmp_path):
 
         mock_proc.return_value = {"pixel_values": MagicMock()}
         import torch
+
         fake_logits = torch.rand(1, 5, 64, 64)
         mock_output = MagicMock()
         mock_output.logits = fake_logits

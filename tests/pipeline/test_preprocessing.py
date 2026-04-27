@@ -12,9 +12,15 @@ def test_crop_and_normalize_returns_correct_shape(tmp_path):
     transform = from_bounds(0, 0, 1, 1, big, big)
 
     with rasterio.open(
-        str(src_path), "w", driver="GTiff",
-        height=big, width=big, count=3,
-        dtype="uint16", crs="EPSG:4326", transform=transform
+        str(src_path),
+        "w",
+        driver="GTiff",
+        height=big,
+        width=big,
+        count=3,
+        dtype="uint16",
+        crs="EPSG:4326",
+        transform=transform,
     ) as dst:
         dst.write(data)
 

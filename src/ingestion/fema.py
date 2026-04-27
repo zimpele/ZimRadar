@@ -76,9 +76,7 @@ async def upsert_declarations(records: list[dict], session: AsyncSession) -> Non
 async def ingest_fema_flow(last_refresh: str | None = None) -> None:
     logger.info("Starting FEMA ingestion")
     try:
-        records = await with_retry(
-            lambda: fetch_fema_declarations(last_refresh), max_attempts=3
-        )
+        records = await with_retry(lambda: fetch_fema_declarations(last_refresh), max_attempts=3)
         logger.info(f"Fetched {len(records)} FEMA records")
 
         normalized = [
@@ -115,6 +113,7 @@ async def ingest_fema_flow(last_refresh: str | None = None) -> None:
                 )
             )
             import asyncio
+
             for disaster_number, title in rows.fetchall():
                 chunks = chunk_text(title)
                 embeddings = await asyncio.to_thread(embedder.embed_batch, chunks)

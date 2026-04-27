@@ -1,7 +1,18 @@
 from datetime import datetime, date
 from typing import Any
 from uuid import UUID
-from sqlalchemy import Integer, Float, Boolean, Text, Date, DateTime, ForeignKey, UniqueConstraint, CheckConstraint, text as sa_text
+from sqlalchemy import (
+    Integer,
+    Float,
+    Boolean,
+    Text,
+    Date,
+    DateTime,
+    ForeignKey,
+    UniqueConstraint,
+    CheckConstraint,
+    text as sa_text,
+)
 from sqlalchemy.dialects.postgresql import JSONB, UUID as PG_UUID
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 from pgvector.sqlalchemy import Vector
@@ -17,7 +28,9 @@ class Region(Base):
     name: Mapped[str] = mapped_column(Text, nullable=False)
     bbox: Mapped[dict[str, Any]] = mapped_column(JSONB, nullable=False)
     active: Mapped[bool] = mapped_column(Boolean, default=True, server_default=sa_text("true"))
-    created_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), server_default=sa_text("now()"))
+    created_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), server_default=sa_text("now()")
+    )
 
 
 class Sentinel2Tile(Base):
@@ -77,7 +90,9 @@ class RiskAssessment(Base):
     composite_score: Mapped[float] = mapped_column(Float, nullable=False)
     assessed_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
     __table_args__ = (
-        CheckConstraint("risk_tier IN ('low', 'moderate', 'high', 'critical')", name="ck_risk_tier"),
+        CheckConstraint(
+            "risk_tier IN ('low', 'moderate', 'high', 'critical')", name="ck_risk_tier"
+        ),
     )
 
 

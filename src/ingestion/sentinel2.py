@@ -55,14 +55,18 @@ async def ingest_sentinel2_flow(region_id: int, date_from: str, date_to: str) ->
         products = await with_retry(
             lambda: asyncio.to_thread(
                 search_sentinel2_tiles,
-                bbox, date_from, date_to,
-                settings.sentinelsat_user, settings.sentinelsat_pass,
+                bbox,
+                date_from,
+                date_to,
+                settings.sentinelsat_user,
+                settings.sentinelsat_pass,
             )
         )
         logger.info(f"Found {len(products)} Sentinel-2 tiles for region {region_id}")
 
         api = SentinelAPI(
-            settings.sentinelsat_user, settings.sentinelsat_pass,
+            settings.sentinelsat_user,
+            settings.sentinelsat_pass,
             "https://scihub.copernicus.eu/dhus",
         )
 
@@ -100,9 +104,7 @@ async def ingest_sentinel2_flow(region_id: int, date_from: str, date_to: str) ->
                             profile = src.profile.copy()
                             scale_x = src.width / TILE_SIZE
                             scale_y = src.height / TILE_SIZE
-                            scaled_transform = src.transform * src.transform.scale(
-                                scale_x, scale_y
-                            )
+                            scaled_transform = src.transform * src.transform.scale(scale_x, scale_y)
                     band_arrays.append(arr)
 
                 stacked = np.stack(band_arrays)

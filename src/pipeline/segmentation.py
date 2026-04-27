@@ -70,10 +70,12 @@ class SegmentationPipeline:
 
         def mask_to_geojson(mask: np.ndarray, label: str) -> dict:
             from rasterio import features
+
             shapes = list(features.shapes(mask, transform=transform))
             features_list = [
                 {"type": "Feature", "geometry": geom, "properties": {"label": label}}
-                for geom, val in shapes if val == 1
+                for geom, val in shapes
+                if val == 1
             ]
             return {"type": "FeatureCollection", "features": features_list}
 

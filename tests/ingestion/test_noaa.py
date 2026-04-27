@@ -40,14 +40,16 @@ async def test_fetch_noaa_daily_returns_observations():
 
     assert len(results) == 1
     assert results[0]["precipitation_mm"] == pytest.approx(2.5)  # PRCP in tenths of mm
-    assert results[0]["temp_max_c"] == pytest.approx(18.0)       # TMAX in tenths of °C
+    assert results[0]["temp_max_c"] == pytest.approx(18.0)  # TMAX in tenths of °C
 
 
 @pytest.mark.asyncio
 async def test_upsert_observations_is_idempotent(db_session):
     # Need a region row to satisfy FK
     await db_session.execute(
-        text("INSERT INTO regions (name, bbox) VALUES ('test_noaa', '{\"min_lon\": 0}') ON CONFLICT DO NOTHING")
+        text(
+            "INSERT INTO regions (name, bbox) VALUES ('test_noaa', '{\"min_lon\": 0}') ON CONFLICT DO NOTHING"
+        )
     )
     await db_session.flush()
     region_id = (

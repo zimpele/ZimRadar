@@ -5,6 +5,7 @@ per-class accuracy of our patch-level land-use predictions.
 Eval passes if mean accuracy across 5 land-use classes >= 0.60 (baseline).
 Raise threshold in Phase 2 after fine-tuning.
 """
+
 import os
 import tempfile
 import numpy as np
@@ -54,9 +55,15 @@ def test_segmentation_eurosat_baseline():
             arr = np.array(img_resized).transpose(2, 0, 1).astype(np.float32) / 255.0
 
             with rasterio.open(
-                tmp_path, "w", driver="GTiff", height=256, width=256,
-                count=3, dtype="float32", crs="EPSG:4326",
-                transform=from_bounds(0, 0, 1, 1, 256, 256)
+                tmp_path,
+                "w",
+                driver="GTiff",
+                height=256,
+                width=256,
+                count=3,
+                dtype="float32",
+                crs="EPSG:4326",
+                transform=from_bounds(0, 0, 1, 1, 256, 256),
             ) as dst:
                 dst.write(arr)
 

@@ -72,13 +72,15 @@ with col_map:
                         "type": "Feature",
                         "geometry": {
                             "type": "Polygon",
-                            "coordinates": [[
-                                [bbox["min_lon"], bbox["min_lat"]],
-                                [bbox["max_lon"], bbox["min_lat"]],
-                                [bbox["max_lon"], bbox["max_lat"]],
-                                [bbox["min_lon"], bbox["max_lat"]],
-                                [bbox["min_lon"], bbox["min_lat"]],
-                            ]],
+                            "coordinates": [
+                                [
+                                    [bbox["min_lon"], bbox["min_lat"]],
+                                    [bbox["max_lon"], bbox["min_lat"]],
+                                    [bbox["max_lon"], bbox["max_lat"]],
+                                    [bbox["min_lon"], bbox["max_lat"]],
+                                    [bbox["min_lon"], bbox["min_lat"]],
+                                ]
+                            ],
                         },
                         "properties": {"name": region["name"], "tier": tier},
                     },
@@ -119,9 +121,10 @@ with col_report:
                 st.warning("⚠ Low confidence report — factuality score below threshold.")
             st.markdown(report["narrative"])
             if report.get("citations"):
-                st.caption("**Sources:** " + " · ".join(
-                    f"[{i+1}] {c}" for i, c in enumerate(report["citations"])
-                ))
+                st.caption(
+                    "**Sources:** "
+                    + " · ".join(f"[{i + 1}] {c}" for i, c in enumerate(report["citations"]))
+                )
             if report.get("factuality_score") is not None:
                 st.caption(f"Factuality score: {report['factuality_score']:.2f}")
         else:

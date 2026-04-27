@@ -33,7 +33,12 @@ async def fetch_noaa_daily(
         raw = (await response.json()).get("results", [])
 
     by_date: dict[str, dict] = defaultdict(
-        lambda: {"precipitation_mm": None, "temp_max_c": None, "temp_min_c": None, "soil_moisture": None}
+        lambda: {
+            "precipitation_mm": None,
+            "temp_max_c": None,
+            "temp_min_c": None,
+            "soil_moisture": None,
+        }
     )
     for item in raw:
         d = item["date"][:10]
