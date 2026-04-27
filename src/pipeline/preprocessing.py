@@ -21,6 +21,7 @@ def crop_and_normalize(src_path: str, dst_path: str) -> None:
         scale_y = src.height / TILE_SIZE
         scaled_transform = src.transform * src.transform.scale(scale_x, scale_y)
         profile.update(
+            driver="GTiff",
             count=3,
             height=TILE_SIZE,
             width=TILE_SIZE,

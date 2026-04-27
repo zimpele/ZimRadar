@@ -1,17 +1,22 @@
 import asyncio
 import logging
-import tempfile
 import os
+import tempfile
 from pathlib import Path
+
+import numpy as np
+import rasterio
+from prefect import flow
+from rasterio.enums import Resampling as RS
 from sentinelsat import SentinelAPI, geojson_to_wkt
 from shapely.geometry import box
-from prefect import flow
 from sqlalchemy import text
+
+from src.config import get_settings
+from src.ingestion.base import log_failure, with_retry
+from src.pipeline.preprocessing import REFLECTANCE_MAX, TILE_SIZE
 from src.storage.db import get_async_session
 from src.storage.s3 import S3Client
-from src.pipeline.preprocessing import crop_and_normalize
-from src.ingestion.base import with_retry, log_failure
-from src.config import get_settings
 
 logger = logging.getLogger(__name__)
 
@@ -64,16 +69,60 @@ async def ingest_sentinel2_flow(region_id: int, date_from: str, date_to: str) ->
         for product in products:
             with tempfile.TemporaryDirectory() as tmpdir:
                 await asyncio.to_thread(api.download, product["uuid"], directory_path=tmpdir)
-                raw_files = list(Path(tmpdir).glob("**/*.SAFE"))
-                if not raw_files:
+                raw_safe_dirs = list(Path(tmpdir).glob("**/*.SAFE"))
+                if not raw_safe_dirs:
                     continue
 
+                safe_dir = raw_safe_dirs[0]
                 tile_date = product.get("beginposition", "")[:10] or date_from
-                raw_s3_key = s3.upload_tile(str(raw_files[0]), region_id, tile_date)
+                raw_s3_key = await asyncio.to_thread(
+                    s3.upload_tile, str(safe_dir), region_id, tile_date
+                )
+
+                # Find 10m JP2 bands (Blue B02, Green B03, Red B04) for RGB composite
+                jp2_files = sorted(safe_dir.glob("GRANULE/*/IMG_DATA/R10m/*_B0[234]_10m.jp2"))
+                if not jp2_files or len(jp2_files) < 3:
+                    logger.warning(
+                        "Could not find 10m JP2 bands in %s, skipping preprocessing", safe_dir
+                    )
+                    continue
+
+                band_arrays = []
+                profile = None
+                for jp2 in jp2_files[:3]:
+                    with rasterio.open(str(jp2)) as src:
+                        arr = src.read(
+                            1,
+                            out_shape=(TILE_SIZE, TILE_SIZE),
+                            resampling=RS.bilinear,
+                        ).astype(np.float32)
+                        if profile is None:
+                            profile = src.profile.copy()
+                            scale_x = src.width / TILE_SIZE
+                            scale_y = src.height / TILE_SIZE
+                            scaled_transform = src.transform * src.transform.scale(
+                                scale_x, scale_y
+                            )
+                    band_arrays.append(arr)
+
+                stacked = np.stack(band_arrays)
+                stacked = np.clip(stacked, 0, REFLECTANCE_MAX) / REFLECTANCE_MAX
 
                 processed_path = os.path.join(tmpdir, f"processed_{product['uuid']}.tif")
-                crop_and_normalize(str(raw_files[0]), processed_path)
-                processed_s3_key = s3.upload_processed_tile(processed_path, region_id, tile_date)
+                profile.update(
+                    driver="GTiff",
+                    count=3,
+                    height=TILE_SIZE,
+                    width=TILE_SIZE,
+                    dtype="float32",
+                    transform=scaled_transform,
+                )
+                with rasterio.open(processed_path, "w", **profile) as dst:
+                    dst.write(stacked)
+
+                processed_s3_key = await asyncio.to_thread(
+                    s3.upload_processed_tile, processed_path, region_id, tile_date
+                )
 
                 async with get_async_session() as session:
                     await session.execute(
