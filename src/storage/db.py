@@ -1,3 +1,4 @@
+from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession, async_sessionmaker
 from src.config import get_settings
@@ -20,7 +21,7 @@ def _ensure_initialized():
 
 
 @asynccontextmanager
-async def get_async_session() -> AsyncSession:
+async def get_async_session() -> AsyncIterator[AsyncSession]:
     _ensure_initialized()
     async with _session_factory() as session:
         try:
