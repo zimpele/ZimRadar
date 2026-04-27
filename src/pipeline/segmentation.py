@@ -1,3 +1,4 @@
+import asyncio
 import json
 import logging
 import numpy as np
@@ -102,8 +103,8 @@ async def run_segmentation_for_tile(tile_id: int, processed_s3_path: str) -> Non
 
     with tempfile.TemporaryDirectory() as tmpdir:
         local_path = os.path.join(tmpdir, "tile.tif")
-        s3.download_tile(processed_s3_path, local_path)
-        result = pipeline.segment(local_path)
+        await asyncio.to_thread(s3.download_tile, processed_s3_path, local_path)
+        result = await asyncio.to_thread(pipeline.segment, local_path)
 
     async with get_async_session() as session:
         await session.execute(

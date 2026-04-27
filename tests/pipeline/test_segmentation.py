@@ -44,5 +44,6 @@ def test_segment_tile_returns_area_stats(tmp_path):
     assert "geojson" in result
     assert "area_stats" in result
     assert "flood_zone_geojson" in result
+    assert "model_version" in result
     for cls in LAND_USE_CLASSES:
         assert cls in result["area_stats"]
