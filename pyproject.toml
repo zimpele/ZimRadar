@@ -35,6 +35,10 @@ dev = [
   "factory-boy>=3.3",
   "ruff>=0.4",
 ]
+eval = [
+  "datasets>=2.0",
+  "torchgeo>=0.5",
+]
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
