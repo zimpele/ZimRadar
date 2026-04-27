@@ -1,5 +1,5 @@
 import pytest
-from unittest.mock import patch, AsyncMock
+from unittest.mock import patch, AsyncMock, MagicMock
 from sqlalchemy import text
 from src.ingestion.fema import fetch_fema_declarations, upsert_declarations
 
@@ -25,9 +25,9 @@ async def test_fetch_fema_declarations_returns_list():
     with patch("src.ingestion.fema.httpx.AsyncClient") as mock_client_cls:
         mock_client = AsyncMock()
         mock_client_cls.return_value.__aenter__.return_value = mock_client
-        mock_response_obj = AsyncMock()
+        mock_response_obj = MagicMock()
         mock_response_obj.json.return_value = mock_response
-        mock_response_obj.raise_for_status = AsyncMock()
+        mock_response_obj.raise_for_status.return_value = None
         mock_client.get.return_value = mock_response_obj
 
         results = await fetch_fema_declarations(last_refresh=None)

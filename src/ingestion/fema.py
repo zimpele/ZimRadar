@@ -25,8 +25,8 @@ async def fetch_fema_declarations(last_refresh: str | None) -> list[dict]:
         while True:
             params["$skip"] = skip
             response = await client.get(FEMA_BASE_URL, params=params)
-            await response.raise_for_status()
-            data = await response.json()
+            response.raise_for_status()
+            data = response.json()
             batch = data.get("DisasterDeclarationsSummaries", [])
             records.extend(batch)
             if len(batch) < PAGE_SIZE:
@@ -114,10 +114,11 @@ async def ingest_fema_flow(last_refresh: str | None = None) -> None:
                     "WHERE declaration_title IS NOT NULL"
                 )
             )
+            import asyncio
             for disaster_number, title in rows.fetchall():
                 chunks = chunk_text(title)
-                for idx, chunk in enumerate(chunks):
-                    embedding = embedder.embed(chunk)
+                embeddings = await asyncio.to_thread(embedder.embed_batch, chunks)
+                for idx, (chunk, embedding) in enumerate(zip(chunks, embeddings)):
                     await session.execute(
                         sql_text("""
                             INSERT INTO text_embeddings
