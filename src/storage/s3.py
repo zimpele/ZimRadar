@@ -28,7 +28,8 @@ class S3Client:
         return key
 
     def download_tile(self, s3_key: str, dest_path: str) -> None:
-        os.makedirs(os.path.dirname(dest_path), exist_ok=True)
+        if dirname := os.path.dirname(dest_path):
+            os.makedirs(dirname, exist_ok=True)
         self._client.download_file(self.bucket, s3_key, dest_path)
 
     def upload_pdf(self, local_path: str, report_id: str) -> str:
