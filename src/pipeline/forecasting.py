@@ -2,6 +2,7 @@
 import asyncio
 import json
 import logging
+import threading
 import numpy as np
 import torch
 from datetime import datetime, timezone
@@ -36,9 +37,24 @@ class _ChronosPipeline:
         }
 
 
+_chronos_pipeline: _ChronosPipeline | None = None
+_chronos_pipeline_lock = threading.Lock()
+
+
+def _get_chronos_pipeline() -> _ChronosPipeline:
+    global _chronos_pipeline
+    if _chronos_pipeline is None:
+        with _chronos_pipeline_lock:
+            if _chronos_pipeline is None:
+                _chronos_pipeline = _ChronosPipeline()
+    return _chronos_pipeline
+
+
 def _compute_flood_risk_flag(samples_30d: np.ndarray, historical_precip: list[float]) -> bool:
     """P(any 3 consecutive days exceed the 95th historical percentile) > 0.3"""
     if not historical_precip:
+        return False
+    if len(samples_30d) == 0:
         return False
     p95 = float(np.percentile(historical_precip, 95))
     count = 0
@@ -52,6 +68,8 @@ def _compute_flood_risk_flag(samples_30d: np.ndarray, historical_precip: list[fl
 
 def _compute_fire_risk_flag(temp_samples_30d: np.ndarray, vegetation_trend: float) -> bool:
     """P(any 7 consecutive days > 40°C AND vegetation declining) > 0.3"""
+    if len(temp_samples_30d) == 0:
+        return False
     if vegetation_trend >= 0:
         return False
     count = 0
@@ -88,17 +106,19 @@ async def run_forecast_for_region(region_id: int) -> None:
     precip_series = [float(r.precipitation_mm or 0.0) for r in obs]
     temp_series = [float(r.temp_max_c or 20.0) for r in obs]
 
-    chronos = await asyncio.to_thread(_ChronosPipeline)
+    chronos = await asyncio.to_thread(_get_chronos_pipeline)
 
     forecasts: dict = {}
+    precip_fc_30d: dict = {}
     for horizon in FORECAST_HORIZONS:
         fc = await asyncio.to_thread(chronos.forecast, precip_series, horizon)
+        if horizon == 30:
+            precip_fc_30d = fc
         forecasts[f"forecast_{horizon}d"] = {k: v for k, v in fc.items() if k != "samples"}
 
-    precip_fc_full = await asyncio.to_thread(chronos.forecast, precip_series, 30)
     temp_fc_full = await asyncio.to_thread(chronos.forecast, temp_series, 30)
 
-    precip_samples_30d = np.array(precip_fc_full["samples"])
+    precip_samples_30d = np.array(precip_fc_30d["samples"])
     temp_samples_30d = np.array(temp_fc_full["samples"])
 
     # Vegetation trend from segmentation history
