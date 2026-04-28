@@ -1,5 +1,6 @@
 # src/rag/retriever.py
 import asyncio
+import threading
 from typing import Any
 from sentence_transformers import CrossEncoder
 from sqlalchemy import text
@@ -11,13 +12,29 @@ TOP_K_INITIAL = 20
 TOP_K_FINAL = 5
 
 _cross_encoder: CrossEncoder | None = None
+_cross_encoder_lock = threading.Lock()
 
 
 def _get_cross_encoder() -> CrossEncoder:
     global _cross_encoder
     if _cross_encoder is None:
-        _cross_encoder = CrossEncoder(CROSS_ENCODER_MODEL)
+        with _cross_encoder_lock:
+            if _cross_encoder is None:
+                _cross_encoder = CrossEncoder(CROSS_ENCODER_MODEL)
     return _cross_encoder
+
+
+_text_embedder: TextEmbedder | None = None
+_embedder_lock = threading.Lock()
+
+
+def _get_text_embedder() -> TextEmbedder:
+    global _text_embedder
+    if _text_embedder is None:
+        with _embedder_lock:
+            if _text_embedder is None:
+                _text_embedder = TextEmbedder()
+    return _text_embedder
 
 
 def _vec_to_pg(vec: list[float]) -> str:
@@ -33,7 +50,7 @@ async def retrieve(
     date_to: str | None = None,
     top_k: int = TOP_K_FINAL,
 ) -> list[dict[str, Any]]:
-    embedder = TextEmbedder()
+    embedder = _get_text_embedder()
     query_vec = await asyncio.to_thread(embedder.embed, query)
     vec_str = _vec_to_pg(query_vec)
 
