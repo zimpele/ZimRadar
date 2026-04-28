@@ -7,6 +7,8 @@ RUN uv pip install --system -e .
 COPY src/ ./src/
 
 FROM base AS worker
+RUN uv pip install --system -e ".[dev]"
+COPY tests/ ./tests/
 CMD ["python", "-m", "prefect", "worker", "start", "--pool", "default-agent-pool"]
 
 FROM base AS streamlit
