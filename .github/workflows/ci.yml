@@ -85,3 +85,39 @@ jobs:
 
       - name: Run segmentation eval
         run: pytest tests/evals/test_segmentation_eval.py -v -m slow
+
+  forecast-eval:
+    runs-on: ubuntu-latest
+    needs: test
+    if: github.event_name == 'pull_request'
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: pip install uv && uv pip install --system -e ".[dev,eval]"
+
+      - name: Run Chronos CRPS eval
+        run: pytest tests/evals/test_forecast_eval.py -v -m slow
+
+  tabular-eval:
+    runs-on: ubuntu-latest
+    needs: test
+    if: github.event_name == 'pull_request'
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: pip install uv && uv pip install --system -e ".[dev,eval]"
+
+      - name: Run XGBoost AUC-ROC eval
+        run: pytest tests/evals/test_tabular_eval.py -v -m slow
