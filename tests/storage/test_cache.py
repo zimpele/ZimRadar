@@ -1,5 +1,4 @@
 import fakeredis
-import pytest
 from unittest.mock import patch
 
 
@@ -26,3 +25,17 @@ def test_make_cache_key_format():
 def test_ttl_default_is_7_days():
     from src.storage.cache import DEFAULT_TTL
     assert DEFAULT_TTL == 7 * 24 * 3600
+
+
+def test_redis_error_in_get_returns_none():
+    from src.storage import cache
+    with patch("src.storage.cache._get_client") as mock_get:
+        mock_get.return_value.get.side_effect = __import__("redis").RedisError("down")
+        assert cache.get_cached("key") is None
+
+
+def test_redis_error_in_set_is_swallowed():
+    from src.storage import cache
+    with patch("src.storage.cache._get_client") as mock_get:
+        mock_get.return_value.setex.side_effect = __import__("redis").RedisError("down")
+        cache.set_cached("key", {"x": 1})  # must not raise
