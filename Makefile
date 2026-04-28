@@ -1,17 +1,19 @@
 .PHONY: up down eval pull-model migrate test lint
 
+DOCKER ?= /Users/luca/.orbstack/bin/docker
+
 up:
-	docker-compose up -d
+	$(DOCKER) compose up -d
 	@echo "Services started. Streamlit: http://localhost:8501  Prefect: http://localhost:4200"
 
 down:
-	docker-compose down
+	$(DOCKER) compose down
 
 pull-model:
-	docker-compose exec ollama ollama pull gemma2:9b
+	$(DOCKER) compose exec ollama ollama pull gemma2:9b
 
 migrate:
-	docker-compose exec postgres psql -U zimradar -d zimradar -f /docker-entrypoint-initdb.d/001_initial.sql
+	$(DOCKER) compose exec postgres psql -U zimradar -d zimradar -f /docker-entrypoint-initdb.d/001_initial.sql
 
 eval:
 	pytest tests/evals/ -v -m slow
