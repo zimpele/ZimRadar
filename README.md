@@ -198,6 +198,3 @@ CI runs regression evals on every pull request:
 
 ---
 
-## License
-
-MIT
