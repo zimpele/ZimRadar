@@ -24,9 +24,15 @@ async def test_engine():
     await engine.dispose()
 
 
-@pytest_asyncio.fixture(scope="function", loop_scope="session")
-async def db_session(test_engine) -> AsyncSession:
-    factory = async_sessionmaker(test_engine, expire_on_commit=False)
+@pytest_asyncio.fixture(scope="function", loop_scope="function")
+async def db_session() -> AsyncSession:
+    engine = create_async_engine(TEST_DB_URL, echo=False)
+    async with engine.begin() as conn:
+        await conn.execute(text("CREATE EXTENSION IF NOT EXISTS vector"))
+        await conn.execute(text('CREATE EXTENSION IF NOT EXISTS "pgcrypto"'))
+        await conn.run_sync(Base.metadata.create_all)
+    factory = async_sessionmaker(engine, expire_on_commit=False)
     async with factory() as session:
         yield session
         await session.rollback()
+    await engine.dispose()
