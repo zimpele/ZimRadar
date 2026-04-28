@@ -1,12 +1,59 @@
-.superpowers/
-.env
-.worktrees/
+# Python
 __pycache__/
 *.pyc
 *.pyo
+*.pyd
+*.egg
 *.egg-info/
 dist/
 build/
+.eggs/
+
+# Environments
+.env
+.env.*
+!.env.example
+.venv/
+venv/
+env/
+
+# Tools
 .pytest_cache/
 .ruff_cache/
-*.egg
+.mypy_cache/
+.coverage
+htmlcov/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+.DS_Store
+
+# Git worktrees
+.worktrees/
+
+# Superpowers
+.superpowers/
+
+# ML model weights and caches
+*.pt
+*.pth
+*.bin
+*.safetensors
+*.onnx
+models/
+.cache/
+
+
+# Jupyter
+.ipynb_checkpoints/
+*.ipynb
+
+# Docker
+.docker/
+
+# Logs
+*.log
+logs/
