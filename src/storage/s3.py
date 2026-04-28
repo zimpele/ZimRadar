@@ -37,3 +37,14 @@ class S3Client:
         key = f"{report_id}.pdf"
         self._client.upload_file(local_path, settings.s3_bucket_pdfs, key)
         return key
+
+    def upload_model(self, local_path: str, s3_key: str) -> str:
+        settings = get_settings()
+        self._client.upload_file(local_path, settings.s3_bucket_tiles, s3_key)
+        return s3_key
+
+    def download_model(self, s3_key: str, dest_path: str) -> None:
+        settings = get_settings()
+        if dirname := os.path.dirname(dest_path):
+            os.makedirs(dirname, exist_ok=True)
+        self._client.download_file(settings.s3_bucket_tiles, s3_key, dest_path)

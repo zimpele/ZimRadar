@@ -29,3 +29,38 @@ def test_download_tile_writes_file(tmp_path):
     mock_client.download_file.assert_called_once_with(
         "zimradar-tiles", "sentinel2/1/2024-01-15/tile.tif", dest
     )
+
+
+def test_upload_model_uses_tiles_bucket(tmp_path):
+    with patch("src.storage.s3.boto3.client") as mock_boto:
+        with patch("src.storage.s3.get_settings") as mock_settings:
+            mock_client = MagicMock()
+            mock_boto.return_value = mock_client
+            mock_settings_obj = MagicMock()
+            mock_settings_obj.s3_bucket_tiles = "zimradar-tiles"
+            mock_settings.return_value = mock_settings_obj
+
+            s3 = S3Client()
+            tmp_file = tmp_path / "model.json"
+            tmp_file.write_text("{}")
+
+            key = s3.upload_model(str(tmp_file), "models/xgboost.json")
+
+            assert key == "models/xgboost.json"
+            mock_client.upload_file.assert_called_with(str(tmp_file), "zimradar-tiles", "models/xgboost.json")
+
+
+def test_download_model_creates_parent_dirs(tmp_path):
+    with patch("src.storage.s3.boto3.client") as mock_boto:
+        with patch("src.storage.s3.get_settings") as mock_settings:
+            mock_client = MagicMock()
+            mock_boto.return_value = mock_client
+            mock_settings_obj = MagicMock()
+            mock_settings_obj.s3_bucket_tiles = "zimradar-tiles"
+            mock_settings.return_value = mock_settings_obj
+
+            s3 = S3Client()
+            dest = str(tmp_path / "subdir" / "model.json")
+            s3.download_model("models/xgboost.json", dest)
+
+            mock_client.download_file.assert_called_with("zimradar-tiles", "models/xgboost.json", dest)
