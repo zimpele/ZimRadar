@@ -38,6 +38,8 @@ services:
   prefect:
     image: prefecthq/prefect:3-latest
     command: prefect server start --host 0.0.0.0
+    environment:
+      PREFECT_UI_API_URL: http://187.77.95.56:4200/api
     ports:
       - "4200:4200"
     depends_on:

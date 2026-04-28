@@ -1,5 +1,6 @@
 FROM python:3.11-slim AS base
 WORKDIR /app
+ENV PYTHONPATH=/app
 RUN pip install uv
 COPY pyproject.toml .
 RUN uv pip install --system -e .
