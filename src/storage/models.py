@@ -148,3 +148,14 @@ class FailedIngestion(Base):
     flow_name: Mapped[str] = mapped_column(Text, nullable=False)
     error_message: Mapped[str] = mapped_column(Text, nullable=False)
     failed_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+
+
+class DepthResult(Base):
+    __tablename__ = "depth_results"
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    tile_id: Mapped[int] = mapped_column(ForeignKey("sentinel2_tiles.id", ondelete="CASCADE"))
+    flood_zone_geojson: Mapped[dict | None] = mapped_column(JSONB)
+    depth_map_s3_path: Mapped[str | None] = mapped_column(Text)
+    model_version: Mapped[str] = mapped_column(Text, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    __table_args__ = (UniqueConstraint("tile_id", "model_version"),)
