@@ -54,7 +54,7 @@ def test_depth_pipeline_flood_mask_covers_top_10_percent():
         dp._pipe = mock_pipe
         result = dp.estimate(tile_path)
 
-    # Flood zone features are present for the highest-depth pixels
+    # flood zone = lowest 10% depth values (low-lying terrain closest to overhead sensor)
     assert len(result["flood_zone_geojson"]["features"]) > 0
 
 
@@ -101,14 +101,16 @@ async def test_run_depth_for_tile_caches_result_on_miss():
 
     set_cached_calls = []
 
+    # get_cached / set_cached are called via asyncio.to_thread; patching the underlying
+    # function is sufficient because to_thread simply invokes the mock in a thread pool.
     with (
         patch("src.pipeline.depth.get_cached", return_value=None),
         patch("src.pipeline.depth.set_cached", side_effect=lambda k, v: set_cached_calls.append(v)),
         patch("src.pipeline.depth.S3Client"),
-        patch("src.pipeline.depth.DepthPipeline") as mock_dp_cls,
+        patch("src.pipeline.depth._get_pipeline") as mock_get_pipeline,
         patch("src.pipeline.depth.get_async_session", return_value=mock_session),
     ):
-        mock_dp_cls.return_value.estimate.return_value = fresh_result
+        mock_get_pipeline.return_value.estimate.return_value = fresh_result
         await run_depth_for_tile(tile_id=2, processed_s3_path="s3/other.tif")
 
     assert len(set_cached_calls) == 1

@@ -1,8 +1,9 @@
 import asyncio
 import json
 import logging
+import os
+import tempfile
 import numpy as np
-import torch
 import rasterio
 from datetime import datetime, timezone
 from PIL import Image
@@ -33,9 +34,9 @@ class DepthPipeline:
         result = self._pipe(image)
         depth_map = result["predicted_depth"].squeeze().numpy()  # (H, W)
 
-        # Lowest 10% elevation = largest depth values (overhead view: far = low elevation)
-        threshold = np.percentile(depth_map, 90)
-        flood_mask = (depth_map >= threshold).astype(np.uint8)
+        # Low-lying terrain = smallest depth values (overhead sensor: low elevation = closest = smallest depth)
+        threshold = np.percentile(depth_map, 10)
+        flood_mask = (depth_map <= threshold).astype(np.uint8)
 
         from rasterio import features
         shapes = list(features.shapes(flood_mask, transform=transform))
@@ -55,21 +56,28 @@ class DepthPipeline:
         }
 
 
-async def run_depth_for_tile(tile_id: int, processed_s3_path: str) -> None:
-    import tempfile
-    import os
+_pipeline: "DepthPipeline | None" = None
 
+
+def _get_pipeline() -> "DepthPipeline":
+    global _pipeline
+    if _pipeline is None:
+        _pipeline = DepthPipeline()
+    return _pipeline
+
+
+async def run_depth_for_tile(tile_id: int, processed_s3_path: str) -> None:
     cache_key = make_cache_key(processed_s3_path, MODEL_VERSION)
-    result = get_cached(cache_key)
+    result = await asyncio.to_thread(get_cached, cache_key)
 
     if result is None:
         s3 = S3Client()
-        pipeline = await asyncio.to_thread(DepthPipeline)
+        pipeline = await asyncio.to_thread(_get_pipeline)
         with tempfile.TemporaryDirectory() as tmpdir:
             local_path = os.path.join(tmpdir, "tile.tif")
             await asyncio.to_thread(s3.download_tile, processed_s3_path, local_path)
             result = await asyncio.to_thread(pipeline.estimate, local_path)
-        set_cached(cache_key, result)
+        await asyncio.to_thread(set_cached, cache_key, result)
 
     async with get_async_session() as session:
         await session.execute(
