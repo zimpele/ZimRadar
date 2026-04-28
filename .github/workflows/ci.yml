@@ -1,0 +1,87 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: pgvector/pgvector:pg16
+        env:
+          POSTGRES_USER: zimradar
+          POSTGRES_PASSWORD: password
+          POSTGRES_DB: zimradar_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 5
+
+    env:
+      TEST_DATABASE_URL: postgresql+asyncpg://zimradar:password@localhost:5432/zimradar_test
+      DATABASE_URL: postgresql+asyncpg://zimradar:password@localhost:5432/zimradar_test
+      REDIS_URL: redis://localhost:6379
+      AWS_ACCESS_KEY_ID: test
+      AWS_SECRET_ACCESS_KEY: test
+      AWS_DEFAULT_REGION: us-east-1
+      S3_BUCKET_TILES: zimradar-tiles
+      S3_BUCKET_PDFS: zimradar-pdfs
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: pip install uv && uv pip install --system -e ".[dev]"
+
+      - name: Lint
+        run: ruff check src/ tests/ && ruff format --check src/ tests/
+
+      - name: Run unit tests (excluding evals)
+        run: pytest tests/ -v --ignore=tests/evals/ -x
+
+  eval:
+    runs-on: ubuntu-latest
+    needs: test
+    if: github.event_name == 'pull_request'
+    services:
+      postgres:
+        image: pgvector/pgvector:pg16
+        env:
+          POSTGRES_USER: zimradar
+          POSTGRES_PASSWORD: password
+          POSTGRES_DB: zimradar_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 5
+
+    env:
+      TEST_DATABASE_URL: postgresql+asyncpg://zimradar:password@localhost:5432/zimradar_test
+      DATABASE_URL: postgresql+asyncpg://zimradar:password@localhost:5432/zimradar_test
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: pip install uv && uv pip install --system -e ".[dev,eval]"
+
+      - name: Run segmentation eval
+        run: pytest tests/evals/test_segmentation_eval.py -v -m slow
