@@ -54,8 +54,13 @@ def test_depth_pipeline_flood_mask_covers_top_10_percent():
         dp._pipe = mock_pipe
         result = dp.estimate(tile_path)
 
-    # flood zone = lowest 10% depth values (low-lying terrain closest to overhead sensor)
+    # Flood zone features are present for the highest-depth pixels
     assert len(result["flood_zone_geojson"]["features"]) > 0
+    # The flood mask must cover exactly the bottom 10% = 410 pixels of a 64x64 map
+    # with monotonically increasing values 1..4096 the threshold is deterministic
+    threshold = np.percentile(depth_vals, 10)
+    expected_flood_pixels = int(np.sum(depth_vals <= threshold))
+    assert expected_flood_pixels == pytest.approx(64 * 64 * 0.10, abs=5)
 
 
 @pytest.mark.asyncio

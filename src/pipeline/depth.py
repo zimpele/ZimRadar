@@ -3,8 +3,10 @@ import json
 import logging
 import os
 import tempfile
+import threading
 import numpy as np
 import rasterio
+from rasterio import features
 from datetime import datetime, timezone
 from PIL import Image
 from sqlalchemy import text
@@ -38,7 +40,6 @@ class DepthPipeline:
         threshold = np.percentile(depth_map, 10)
         flood_mask = (depth_map <= threshold).astype(np.uint8)
 
-        from rasterio import features
         shapes = list(features.shapes(flood_mask, transform=transform))
         flood_features = [
             {
@@ -56,13 +57,16 @@ class DepthPipeline:
         }
 
 
-_pipeline: "DepthPipeline | None" = None
+_pipeline: DepthPipeline | None = None
+_pipeline_lock = threading.Lock()
 
 
-def _get_pipeline() -> "DepthPipeline":
+def _get_pipeline() -> DepthPipeline:
     global _pipeline
     if _pipeline is None:
-        _pipeline = DepthPipeline()
+        with _pipeline_lock:
+            if _pipeline is None:
+                _pipeline = DepthPipeline()
     return _pipeline
 
 
