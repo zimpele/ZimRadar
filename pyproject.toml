@@ -36,6 +36,7 @@ dev = [
   "moto[s3]>=5.0",
   "factory-boy>=3.3",
   "ruff>=0.4",
+  "fakeredis>=3.0",
 ]
 eval = [
   "datasets>=2.0",
