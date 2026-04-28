@@ -1,6 +1,11 @@
 FROM python:3.11-slim AS base
 WORKDIR /app
 ENV PYTHONPATH=/app
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    libexpat1 \
+    libgdal-dev \
+    libproj-dev \
+    && rm -rf /var/lib/apt/lists/*
 RUN pip install uv
 COPY pyproject.toml .
 RUN uv pip install --system -e .

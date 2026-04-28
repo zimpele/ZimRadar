@@ -59,6 +59,7 @@ services:
     env_file: .env
     environment:
       DATABASE_URL: postgresql+asyncpg://zimradar:${POSTGRES_PASSWORD:-password}@postgres:5432/zimradar
+      TEST_DATABASE_URL: postgresql+asyncpg://zimradar:${POSTGRES_PASSWORD:-password}@postgres:5432/zimradar_test
       REDIS_URL: redis://redis:6379
       PREFECT_API_URL: http://prefect:4200/api
       OLLAMA_URL: http://ollama:11434
