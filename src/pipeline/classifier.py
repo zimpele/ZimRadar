@@ -123,7 +123,7 @@ async def build_features_for_region(region_id: int) -> dict[str, float]:
     urban_fracs = [float((r.area_stats or {}).get("urban", 0.1)) for r in seg_rows]
 
     # seg_rows ordered DESC, so index 0 is newest, -1 is oldest
-    vegetation_loss_pct = max(0.0, veg_fracs[-1] - veg_fracs[0]) if len(veg_fracs) >= 2 else 0.0
+    vegetation_loss_pct = max(0.0, veg_fracs[0] - veg_fracs[-1]) if len(veg_fracs) >= 2 else 0.0
     urban_density = float(np.mean(urban_fracs)) if urban_fracs else 0.1
 
     async with get_async_session() as session:
