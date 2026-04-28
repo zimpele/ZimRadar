@@ -39,3 +39,15 @@ def test_redis_error_in_set_is_swallowed():
     with patch("src.storage.cache._get_client") as mock_get:
         mock_get.return_value.setex.side_effect = __import__("redis").RedisError("down")
         cache.set_cached("key", {"x": 1})  # must not raise
+
+
+def test_corrupt_cache_entry_returns_none_and_evicts():
+    import fakeredis
+    from src.storage import cache
+
+    fake = fakeredis.FakeRedis(decode_responses=True)
+    fake.set("bad_key", "not-valid-json")
+    with patch("src.storage.cache._client", fake):
+        result = cache.get_cached("bad_key")
+    assert result is None
+    assert fake.exists("bad_key") == 0  # key was evicted
