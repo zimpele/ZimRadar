@@ -20,6 +20,10 @@ class Settings(BaseSettings):
     sentinelsat_pass: str = ""
     noaa_api_key: str = ""
 
+    admin_user: str = "admin"
+    admin_password: str = ""
+    secret_key: str = "change-me-in-production"
+
     langsmith_api_key: str = ""
     langsmith_project: str = "zimradar"
     api_key: str = ""

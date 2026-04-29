@@ -2,12 +2,23 @@ import uuid
 import asyncio
 from fastapi import FastAPI, HTTPException, Header
 from pydantic import BaseModel
+from sqladmin import Admin
+from sqlalchemy.ext.asyncio import create_async_engine
+from starlette.middleware.sessions import SessionMiddleware
+
 from src.agents.graph import build_graph
+from src.api.admin import AdminAuth, RegionAdmin
 from src.config import get_settings
 from src.storage.db import get_async_session
 from src.storage.models import Report
 
+settings = get_settings()
 app = FastAPI(title="ZimRadar API", version="0.1.0")
+app.add_middleware(SessionMiddleware, secret_key=settings.secret_key)
+
+_admin_engine = create_async_engine(settings.database_url, echo=False)
+admin = Admin(app, _admin_engine, authentication_backend=AdminAuth(secret_key=settings.secret_key))
+admin.add_view(RegionAdmin)
 
 _graph = None
 _graph_lock = asyncio.Lock()
