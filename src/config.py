@@ -20,12 +20,6 @@ class Settings(BaseSettings):
     sentinelsat_pass: str = ""
     noaa_api_key: str = ""
 
-    aws_access_key_id: str = ""
-    aws_secret_access_key: str = ""
-    aws_default_region: str = "us-east-1"
-    s3_bucket_tiles: str = "zimradar-tiles"
-    s3_bucket_pdfs: str = "zimradar-pdfs"
-
     langsmith_api_key: str = ""
     langsmith_project: str = "zimradar"
     api_key: str = ""

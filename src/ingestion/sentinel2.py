@@ -24,7 +24,7 @@ logger = logging.getLogger(__name__)
 def search_sentinel2_tiles(
     bbox: dict, date_from: str, date_to: str, user: str, password: str
 ) -> list[dict]:
-    api = SentinelAPI(user, password, "https://scihub.copernicus.eu/dhus")
+    api = SentinelAPI(user, password, "https://catalogue.dataspace.copernicus.eu/odata/v1")
     footprint = geojson_to_wkt(
         box(bbox["min_lon"], bbox["min_lat"], bbox["max_lon"], bbox["max_lat"]).__geo_interface__
     )
@@ -67,7 +67,7 @@ async def ingest_sentinel2_flow(region_id: int, date_from: str, date_to: str) ->
         api = SentinelAPI(
             settings.sentinelsat_user,
             settings.sentinelsat_pass,
-            "https://scihub.copernicus.eu/dhus",
+            "https://catalogue.dataspace.copernicus.eu/odata/v1",
         )
 
         for product in products:

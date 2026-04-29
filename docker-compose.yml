@@ -72,6 +72,7 @@ services:
         condition: service_healthy
     volumes:
       - ./src:/app/src
+      - zimradar_data:/app/data
 
   streamlit:
     build:
@@ -97,6 +98,8 @@ services:
       OLLAMA_URL: http://ollama:11434
     ports:
       - "8000:8000"
+    volumes:
+      - zimradar_data:/app/data
     depends_on:
       postgres:
         condition: service_healthy
@@ -110,3 +113,4 @@ services:
 volumes:
   postgres_data:
   ollama_data:
+  zimradar_data:
