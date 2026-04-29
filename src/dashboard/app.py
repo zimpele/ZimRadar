@@ -1,4 +1,5 @@
 import asyncio
+import json
 import streamlit as st
 from sqlalchemy import text
 from src.storage.db import get_async_session
@@ -58,7 +59,8 @@ with col_map:
         m = leafmap.Map(center=[37.5, -96], zoom=4)
 
         for region in regions:
-            bbox = region.get("bbox") or {}
+            raw_bbox = region.get("bbox") or {}
+            bbox = json.loads(raw_bbox) if isinstance(raw_bbox, str) else raw_bbox
             tier = region.get("risk_tier", "unknown")
             color = {
                 "critical": "red",
