@@ -58,7 +58,10 @@ async def test_run_classification_for_region_writes_risk_assessment():
     insert_calls = []
     mock_session = MagicMock()
     mock_session.execute = AsyncMock(
-        side_effect=[mock_fc_result, AsyncMock(side_effect=lambda *a, **kw: insert_calls.append(kw))]
+        side_effect=[
+            mock_fc_result,
+            AsyncMock(side_effect=lambda *a, **kw: insert_calls.append(kw)),
+        ]
     )
     mock_session.__aenter__ = AsyncMock(return_value=mock_session)
     mock_session.__aexit__ = AsyncMock(return_value=False)

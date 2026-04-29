@@ -20,7 +20,9 @@ async def test_report_node_sets_draft_and_citations():
 
     with (
         patch("src.agents.report.retrieve", new_callable=AsyncMock, return_value=mock_context),
-        patch("src.agents.report.complete", new_callable=AsyncMock, return_value="Risk is high [1]."),
+        patch(
+            "src.agents.report.complete", new_callable=AsyncMock, return_value="Risk is high [1]."
+        ),
     ):
         state = {
             "region_query": "Harris County, TX",

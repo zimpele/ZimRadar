@@ -47,7 +47,9 @@ def test_upload_model_uses_tiles_bucket(tmp_path):
             key = s3.upload_model(str(tmp_file), "models/xgboost.json")
 
             assert key == "models/xgboost.json"
-            mock_client.upload_file.assert_called_with(str(tmp_file), "zimradar-tiles", "models/xgboost.json")
+            mock_client.upload_file.assert_called_with(
+                str(tmp_file), "zimradar-tiles", "models/xgboost.json"
+            )
 
 
 def test_download_model_creates_parent_dirs(tmp_path):
@@ -63,4 +65,6 @@ def test_download_model_creates_parent_dirs(tmp_path):
             dest = str(tmp_path / "subdir" / "model.json")
             s3.download_model("models/xgboost.json", dest)
 
-            mock_client.download_file.assert_called_with("zimradar-tiles", "models/xgboost.json", dest)
+            mock_client.download_file.assert_called_with(
+                "zimradar-tiles", "models/xgboost.json", dest
+            )

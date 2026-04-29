@@ -9,10 +9,12 @@ async def test_analysis_node_sets_risk_tier_and_score():
     fc_row = ({"forecast_30d": {}}, True, False)
     ra_row = ("high", 0.87, 0.74)
 
-    mock_session.execute = AsyncMock(side_effect=[
-        MagicMock(fetchone=MagicMock(return_value=fc_row)),
-        MagicMock(fetchone=MagicMock(return_value=ra_row)),
-    ])
+    mock_session.execute = AsyncMock(
+        side_effect=[
+            MagicMock(fetchone=MagicMock(return_value=fc_row)),
+            MagicMock(fetchone=MagicMock(return_value=ra_row)),
+        ]
+    )
 
     with (
         patch("src.agents.analysis.run_forecast_for_region", new_callable=AsyncMock),
@@ -33,9 +35,7 @@ async def test_analysis_node_sets_risk_tier_and_score():
 @pytest.mark.asyncio
 async def test_analysis_node_handles_missing_db_rows():
     mock_session = AsyncMock()
-    mock_session.execute = AsyncMock(
-        return_value=MagicMock(fetchone=MagicMock(return_value=None))
-    )
+    mock_session.execute = AsyncMock(return_value=MagicMock(fetchone=MagicMock(return_value=None)))
 
     with (
         patch("src.agents.analysis.run_forecast_for_region", new_callable=AsyncMock),

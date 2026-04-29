@@ -23,6 +23,7 @@ MODEL_VERSION = "zoedepth-nyu-v1"
 class DepthPipeline:
     def __init__(self):
         from transformers import pipeline as hf_pipeline
+
         self._pipe = hf_pipeline("depth-estimation", model=MODEL_ID, device="cpu")
 
     def estimate(self, tile_path: str) -> dict:

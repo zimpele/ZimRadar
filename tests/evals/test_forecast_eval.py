@@ -7,7 +7,7 @@ from pathlib import Path
 
 CRPS_THRESHOLD = 1.60  # baseline from chronos-t5-small on NOAA synthetic holdout (90-day horizon)
 HOLDOUT_PATH = Path(__file__).parent.parent / "fixtures" / "noaa_holdout.csv"
-TRAIN_SIZE = 410   # ~82% of 500
+TRAIN_SIZE = 410  # ~82% of 500
 FORECAST_HORIZON = 90
 
 
@@ -26,10 +26,9 @@ def _mean_crps(forecast_samples: np.ndarray, actuals: np.ndarray) -> float:
     forecast_samples: (n_samples, horizon)
     actuals: (horizon,)
     """
-    return float(np.mean([
-        _crps_ensemble(forecast_samples[:, t], actuals[t])
-        for t in range(len(actuals))
-    ]))
+    return float(
+        np.mean([_crps_ensemble(forecast_samples[:, t], actuals[t]) for t in range(len(actuals))])
+    )
 
 
 @pytest.mark.slow
@@ -57,7 +56,9 @@ def test_chronos_crps_below_threshold():
     forecast_samples = samples.squeeze(0).numpy()  # (100, FORECAST_HORIZON)
 
     crps = _mean_crps(forecast_samples, actuals)
-    print(f"\nChronos CRPS on 90-day NOAA holdout: {crps:.4f} (regression threshold: {CRPS_THRESHOLD})")
+    print(
+        f"\nChronos CRPS on 90-day NOAA holdout: {crps:.4f} (regression threshold: {CRPS_THRESHOLD})"
+    )
 
     assert crps < CRPS_THRESHOLD, (
         f"Chronos CRPS {crps:.4f} exceeds regression threshold {CRPS_THRESHOLD}. "

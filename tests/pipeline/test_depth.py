@@ -12,8 +12,15 @@ def _make_test_tile(path: str) -> None:
     data = np.random.default_rng(0).random((3, 64, 64)).astype(np.float32)
     transform = from_bounds(0, 0, 1, 1, 64, 64)
     with rasterio.open(
-        path, "w", driver="GTiff", height=64, width=64, count=3,
-        dtype="float32", crs="EPSG:4326", transform=transform,
+        path,
+        "w",
+        driver="GTiff",
+        height=64,
+        width=64,
+        count=3,
+        dtype="float32",
+        crs="EPSG:4326",
+        transform=transform,
     ) as dst:
         dst.write(data)
 

@@ -8,7 +8,7 @@ def test_compute_flood_risk_flag_triggers_when_threshold_exceeded():
     from src.pipeline.forecasting import _compute_flood_risk_flag
 
     historical = list(range(1, 101))  # p95 ≈ 95
-    high = [96.0, 97.0, 98.0] + [1.0] * 27   # has 3 consecutive > p95
+    high = [96.0, 97.0, 98.0] + [1.0] * 27  # has 3 consecutive > p95
     low = [1.0] * 30
     # 12/20 = 0.6 > 0.3 → True
     samples = np.array([high] * 12 + [low] * 8)
@@ -29,7 +29,7 @@ def test_compute_flood_risk_flag_does_not_trigger_below_threshold():
 def test_compute_fire_risk_flag_triggers_when_hot_and_vegetation_declining():
     from src.pipeline.forecasting import _compute_fire_risk_flag
 
-    hot = [41.0] * 30   # all 30 days > 40°C → any 7 consecutive are > 40°C
+    hot = [41.0] * 30  # all 30 days > 40°C → any 7 consecutive are > 40°C
     samples = np.array([hot] * 10)  # P = 1.0 > 0.3
     assert _compute_fire_risk_flag(samples, vegetation_trend=-0.01) is True
 

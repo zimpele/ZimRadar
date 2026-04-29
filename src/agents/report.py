@@ -22,17 +22,15 @@ async def report_node(state: ZimRadarState) -> ZimRadarState:
         for i, doc in enumerate(context_docs)
     ]
 
-    context_text = "\n\n".join(
-        f"[{i + 1}] {doc['text']}" for i, doc in enumerate(context_docs)
-    )
+    context_text = "\n\n".join(f"[{i + 1}] {doc['text']}" for i, doc in enumerate(context_docs))
 
     prompt = f"""Generate a climate risk assessment report for: {region_query}
 
 Risk Assessment:
 - Risk Tier: {risk_tier}
 - Composite Score: {risk_score:.2f}
-- Flood Risk Flag: {forecast.get('flood_risk_flag', False)}
-- Fire Risk Flag: {forecast.get('fire_risk_flag', False)}
+- Flood Risk Flag: {forecast.get("flood_risk_flag", False)}
+- Fire Risk Flag: {forecast.get("fire_risk_flag", False)}
 
 Retrieved Context:
 {context_text if context_text else "No historical records found."}

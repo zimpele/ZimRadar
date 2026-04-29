@@ -19,7 +19,14 @@ async def test_validator_finalizes_when_score_above_threshold():
             "region_id": 1,
             "report_draft": "Climate risk is high [1].",
             "retrieved_context": [{"text": "Flooding is common in this region."}],
-            "citations": [{"index": 1, "text": "Flooding is common.", "source_type": "fema", "source_id": "123"}],
+            "citations": [
+                {
+                    "index": 1,
+                    "text": "Flooding is common.",
+                    "source_type": "fema",
+                    "source_id": "123",
+                }
+            ],
             "risk_tier": "high",
             "risk_score": 0.8,
             "retry_count": 0,

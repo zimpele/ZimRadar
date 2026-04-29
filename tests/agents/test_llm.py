@@ -11,9 +11,7 @@ async def test_complete_uses_openrouter_when_key_set(monkeypatch):
 
     mock_response = MagicMock()
     mock_response.raise_for_status = MagicMock()
-    mock_response.json.return_value = {
-        "choices": [{"message": {"content": "test response"}}]
-    }
+    mock_response.json.return_value = {"choices": [{"message": {"content": "test response"}}]}
 
     with patch("httpx.AsyncClient") as mock_client_cls:
         mock_client = AsyncMock()
@@ -23,6 +21,7 @@ async def test_complete_uses_openrouter_when_key_set(monkeypatch):
         mock_client_cls.return_value = mock_client
 
         from src.config import get_settings
+
         get_settings.cache_clear()
 
         result = await complete("hello", system="be helpful")
@@ -48,6 +47,7 @@ async def test_complete_falls_back_to_ollama_when_no_key(monkeypatch):
         mock_client_cls.return_value = mock_client
 
         from src.config import get_settings
+
         get_settings.cache_clear()
 
         result = await complete("hello")
@@ -73,6 +73,7 @@ async def test_complete_explicit_ollama_provider(monkeypatch):
         mock_client_cls.return_value = mock_client
 
         from src.config import get_settings
+
         get_settings.cache_clear()
 
         result = await complete("hello")
@@ -89,9 +90,7 @@ async def test_complete_explicit_openrouter_provider(monkeypatch):
 
     mock_response = MagicMock()
     mock_response.raise_for_status = MagicMock()
-    mock_response.json.return_value = {
-        "choices": [{"message": {"content": "openrouter reply"}}]
-    }
+    mock_response.json.return_value = {"choices": [{"message": {"content": "openrouter reply"}}]}
 
     with patch("httpx.AsyncClient") as mock_client_cls:
         mock_client = AsyncMock()
@@ -101,6 +100,7 @@ async def test_complete_explicit_openrouter_provider(monkeypatch):
         mock_client_cls.return_value = mock_client
 
         from src.config import get_settings
+
         get_settings.cache_clear()
 
         result = await complete("hello")

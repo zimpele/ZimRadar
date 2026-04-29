@@ -6,10 +6,12 @@ from src.agents.ingest import ingest_node
 @pytest.mark.asyncio
 async def test_ingest_node_sets_region_id():
     mock_session = AsyncMock()
-    mock_session.execute = AsyncMock(side_effect=[
-        MagicMock(fetchone=MagicMock(return_value=(42,))),
-        MagicMock(fetchall=MagicMock(return_value=[("s3://bucket/tile.tif",)])),
-    ])
+    mock_session.execute = AsyncMock(
+        side_effect=[
+            MagicMock(fetchone=MagicMock(return_value=(42,))),
+            MagicMock(fetchall=MagicMock(return_value=[("s3://bucket/tile.tif",)])),
+        ]
+    )
 
     with patch("src.agents.ingest.get_async_session") as mock_ctx:
         mock_ctx.return_value.__aenter__ = AsyncMock(return_value=mock_session)
@@ -24,9 +26,7 @@ async def test_ingest_node_sets_region_id():
 @pytest.mark.asyncio
 async def test_ingest_node_region_not_found():
     mock_session = AsyncMock()
-    mock_session.execute = AsyncMock(
-        return_value=MagicMock(fetchone=MagicMock(return_value=None))
-    )
+    mock_session.execute = AsyncMock(return_value=MagicMock(fetchone=MagicMock(return_value=None)))
 
     with patch("src.agents.ingest.get_async_session") as mock_ctx:
         mock_ctx.return_value.__aenter__ = AsyncMock(return_value=mock_session)
