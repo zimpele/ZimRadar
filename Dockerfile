@@ -19,3 +19,7 @@ CMD ["python", "-m", "prefect", "worker", "start", "--pool", "default-agent-pool
 FROM base AS streamlit
 EXPOSE 8501
 CMD ["streamlit", "run", "src/dashboard/app.py", "--server.port=8501", "--server.address=0.0.0.0"]
+
+FROM base AS api
+EXPOSE 8000
+CMD ["uvicorn", "src.api.main:app", "--host", "0.0.0.0", "--port", "8000"]
