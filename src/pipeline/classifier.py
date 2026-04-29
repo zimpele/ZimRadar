@@ -19,6 +19,7 @@ FEATURE_NAMES = [
     "infrastructure_age_proxy",
 ]
 RISK_TIERS = ["low", "moderate", "high", "critical"]
+TIER_WEIGHTS = {"low": 0.15, "moderate": 0.45, "high": 0.75, "critical": 1.0}
 MODEL_S3_KEY = "models/xgboost_risk_classifier.json"
 
 
@@ -102,20 +103,67 @@ def classify_region_features(features: dict[str, float]) -> tuple[str, float]:
     return RISK_TIERS[tier_idx], float(proba[tier_idx])
 
 
-def _composite_score(confidence: float, flood_flag: bool, fire_flag: bool) -> float:
+def _composite_score(tier: str, confidence: float, flood_flag: bool, fire_flag: bool) -> float:
     w1, w2, w3 = get_settings().risk_weights
-    return w1 * confidence + w2 * float(flood_flag) + w3 * float(fire_flag)
+    tier_weight = TIER_WEIGHTS.get(tier, 0.5)
+    return w1 * confidence * tier_weight + w2 * float(flood_flag) + w3 * float(fire_flag)
+
+
+def _bbox_to_state_code(bbox: dict) -> str | None:
+    """Rough centroid-based US state lookup for FEMA filtering."""
+    cx = (bbox["min_lon"] + bbox["max_lon"]) / 2
+    cy = (bbox["min_lat"] + bbox["max_lat"]) / 2
+    # Bounding boxes for common states (approximate)
+    STATE_BOXES = {
+        "LA": (-94.0, 28.9, -88.8, 33.0),
+        "TX": (-106.6, 25.8, -93.5, 36.5),
+        "CA": (-124.4, 32.5, -114.1, 42.0),
+        "FL": (-87.6, 24.5, -80.0, 31.0),
+        "NY": (-79.8, 40.5, -71.8, 45.0),
+        "MS": (-91.7, 30.2, -88.1, 35.0),
+        "AL": (-88.5, 30.2, -84.9, 35.0),
+        "GA": (-85.6, 30.4, -80.8, 35.0),
+        "SC": (-83.4, 32.0, -78.5, 35.2),
+        "NC": (-84.3, 33.8, -75.4, 36.6),
+        "VA": (-83.7, 36.5, -75.2, 39.5),
+    }
+    for state, (min_lon, min_lat, max_lon, max_lat) in STATE_BOXES.items():
+        if min_lon <= cx <= max_lon and min_lat <= cy <= max_lat:
+            return state
+    return None
 
 
 async def build_features_for_region(region_id: int) -> dict[str, float]:
     async with get_async_session() as session:
-        flood_result = await session.execute(
-            text("""
-                SELECT COUNT(*) FROM fema_declarations
-                WHERE disaster_type ILIKE '%flood%'
-                AND declaration_date >= NOW() - INTERVAL '5 years'
-            """),
+        # Derive state code from region bbox centroid longitude/latitude
+        bbox_result = await session.execute(
+            text("SELECT bbox FROM regions WHERE id = :rid"), {"rid": region_id}
         )
+        bbox_row = bbox_result.fetchone()
+        state_code = None
+        if bbox_row:
+            import json as _j
+            bbox = bbox_row[0] if not isinstance(bbox_row[0], str) else _j.loads(bbox_row[0])
+            state_code = _bbox_to_state_code(bbox)
+
+        if state_code:
+            flood_result = await session.execute(
+                text("""
+                    SELECT COUNT(*) FROM fema_declarations
+                    WHERE disaster_type ILIKE '%flood%'
+                    AND state = :state
+                    AND declaration_date >= NOW() - INTERVAL '5 years'
+                """),
+                {"state": state_code},
+            )
+        else:
+            flood_result = await session.execute(
+                text("""
+                    SELECT COUNT(*) FROM fema_declarations
+                    WHERE disaster_type ILIKE '%flood%'
+                    AND declaration_date >= NOW() - INTERVAL '5 years'
+                """),
+            )
         flood_events = int(flood_result.scalar() or 0)
 
         precip_result = await session.execute(
@@ -159,15 +207,25 @@ async def build_features_for_region(region_id: int) -> dict[str, float]:
     async with get_async_session() as session:
         depth_result = await session.execute(
             text("""
-                SELECT COUNT(*) FROM depth_results dr
+                SELECT dr.flood_zone_geojson
+                FROM depth_results dr
                 JOIN sentinel2_tiles t ON t.id = dr.tile_id
                 WHERE t.region_id = :rid
             """),
             {"rid": region_id},
         )
-        depth_count = int(depth_result.scalar() or 0)
+        depth_rows = depth_result.fetchall()
 
-    elevation_variance = min(100.0, float(depth_count) * 10.0)
+    import json as _json
+    flood_zone_feature_counts = []
+    for row in depth_rows:
+        fz = row.flood_zone_geojson
+        if isinstance(fz, str):
+            fz = _json.loads(fz)
+        if fz:
+            flood_zone_feature_counts.append(len(fz.get("features", [])))
+    # High feature count = fragmented low-lying terrain = higher elevation variance proxy
+    elevation_variance = min(100.0, float(np.mean(flood_zone_feature_counts)) if flood_zone_feature_counts else 0.0)
     infrastructure_age_proxy = 0.5  # static until OSM feature extraction is added in Phase 3
 
     return {
@@ -196,7 +254,7 @@ async def run_classification_for_region(region_id: int) -> None:
 
     flood_flag = bool(forecast_row.flood_risk_flag) if forecast_row else False
     fire_flag = bool(forecast_row.fire_risk_flag) if forecast_row else False
-    composite = _composite_score(confidence, flood_flag, fire_flag)
+    composite = _composite_score(tier, confidence, flood_flag, fire_flag)
 
     async with get_async_session() as session:
         await session.execute(
