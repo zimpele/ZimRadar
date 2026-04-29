@@ -74,10 +74,10 @@ async def retrieve(
 
     sql = text(f"""
         SELECT id, chunk_text, source_type, source_id, chunk_index, metadata,
-               1 - (embedding <=> :embedding::vector) AS similarity
+               1 - (embedding <=> CAST(:embedding AS vector)) AS similarity
         FROM text_embeddings
         {where}
-        ORDER BY embedding <=> :embedding::vector
+        ORDER BY embedding <=> CAST(:embedding AS vector)
         LIMIT :limit
     """)
 
