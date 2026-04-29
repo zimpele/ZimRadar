@@ -9,6 +9,8 @@ class Settings(BaseSettings):
     redis_url: str = "redis://localhost:6379"
     ollama_url: str = "http://localhost:11434"
     ollama_model: str = "gemma2:9b"
+    openrouter_api_key: str = ""
+    openrouter_model: str = "meta-llama/llama-3.3-70b-instruct:free"
 
     sentinelsat_user: str = ""
     sentinelsat_pass: str = ""

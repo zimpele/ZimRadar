@@ -26,6 +26,10 @@ dependencies = [
   "pillow>=10.0",
   "xgboost>=2.0",
   "chronos-forecasting>=1.0",
+  "langgraph>=0.2",
+  "fastapi>=0.111",
+  "uvicorn>=0.30",
+  "python-multipart>=0.0.9",
 ]
 
 [project.optional-dependencies]
