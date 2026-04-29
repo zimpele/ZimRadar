@@ -48,15 +48,45 @@ def save_classifier_to_s3(model: xgb.XGBClassifier) -> None:
         os.unlink(temp_path)
 
 
+def _bootstrap_model() -> xgb.XGBClassifier:
+    """Train a synthetic model so the pipeline can run before real data exists."""
+    logger.warning("No trained model found — bootstrapping XGBoost on synthetic data.")
+    rng = np.random.default_rng(42)
+    n = 500
+    X = np.column_stack([
+        rng.poisson(2, n),          # flood_events_5yr
+        rng.normal(0, 1, n),        # avg_precipitation_trend
+        rng.uniform(0, 0.5, n),     # vegetation_loss_pct
+        rng.uniform(0, 1, n),       # urban_density
+        rng.uniform(0, 100, n),     # elevation_variance
+        rng.uniform(0, 1, n),       # infrastructure_age_proxy
+    ])
+    risk_score = X[:, 0] * 0.3 + np.clip(X[:, 1], 0, None) * 0.2 + X[:, 2] * 0.3 + X[:, 3] * 0.2
+    y = np.digitize(risk_score, bins=[0.5, 1.0, 1.8]).clip(0, 3)
+    model = xgb.XGBClassifier(
+        n_estimators=100, max_depth=4, learning_rate=0.1,
+        eval_metric="mlogloss", random_state=42,
+    )
+    model.fit(X, y)
+    save_classifier_to_s3(model)
+    logger.info("Bootstrap model saved to %s", MODEL_S3_KEY)
+    return model
+
+
 def load_classifier_from_s3() -> xgb.XGBClassifier:
     import tempfile
     import os
     from src.storage.s3 import S3Client
 
+    client = S3Client()
+    from src.storage.s3 import DATA_ROOT
+    if not (DATA_ROOT / MODEL_S3_KEY).exists():
+        return _bootstrap_model()
+
     with tempfile.NamedTemporaryFile(suffix=".json", delete=False) as f:
         temp_path = f.name
     try:
-        S3Client().download_model(MODEL_S3_KEY, temp_path)
+        client.download_model(MODEL_S3_KEY, temp_path)
         model = xgb.XGBClassifier()
         model.load_model(temp_path)
         return model
