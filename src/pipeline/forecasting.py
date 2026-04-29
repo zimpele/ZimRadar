@@ -149,7 +149,7 @@ async def run_forecast_for_region(region_id: int) -> None:
                     (region_id, forecast_30d, forecast_60d, forecast_90d,
                      flood_risk_flag, fire_risk_flag, model_version, created_at)
                 VALUES
-                    (:region_id, :forecast_30d::jsonb, :forecast_60d::jsonb, :forecast_90d::jsonb,
+                    (:region_id, CAST(:forecast_30d AS jsonb), CAST(:forecast_60d AS jsonb), CAST(:forecast_90d AS jsonb),
                      :flood_risk_flag, :fire_risk_flag, :model_version, :created_at)
             """),
             {

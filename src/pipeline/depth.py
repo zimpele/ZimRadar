@@ -90,7 +90,7 @@ async def run_depth_for_tile(tile_id: int, processed_s3_path: str) -> None:
                 INSERT INTO depth_results
                     (tile_id, flood_zone_geojson, model_version, created_at)
                 VALUES
-                    (:tile_id, :flood_zone_geojson::jsonb, :model_version, :created_at)
+                    (:tile_id, CAST(:flood_zone_geojson AS jsonb), :model_version, :created_at)
                 ON CONFLICT (tile_id, model_version) DO NOTHING
             """),
             {

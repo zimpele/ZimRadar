@@ -46,7 +46,7 @@ async def ingest_osm_flow(region_id: int) -> None:
         async with get_async_session() as session:
             await session.execute(
                 text("""
-                    UPDATE regions SET bbox = jsonb_set(bbox, '{osm_snapshot}', :snapshot::jsonb)
+                    UPDATE regions SET bbox = jsonb_set(bbox, '{osm_snapshot}', CAST(:snapshot AS jsonb))
                     WHERE id = :id
                 """),
                 {"snapshot": str(geojson), "id": region_id},

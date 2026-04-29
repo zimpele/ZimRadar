@@ -114,7 +114,7 @@ async def run_segmentation_for_tile(tile_id: int, processed_s3_path: str) -> Non
                 INSERT INTO segmentation_results
                     (tile_id, geojson, area_stats, flood_zone_geojson, model_version, created_at)
                 VALUES
-                    (:tile_id, :geojson::jsonb, :area_stats::jsonb, :flood_zone_geojson::jsonb,
+                    (:tile_id, CAST(:geojson AS jsonb), CAST(:area_stats AS jsonb), CAST(:flood_zone_geojson AS jsonb),
                      :model_version, :created_at)
                 ON CONFLICT DO NOTHING
             """),

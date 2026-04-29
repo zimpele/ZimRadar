@@ -123,7 +123,7 @@ async def ingest_fema_flow(last_refresh: str | None = None) -> None:
                             INSERT INTO text_embeddings
                                 (source_type, source_id, chunk_text, chunk_index, embedding, metadata)
                             VALUES
-                                ('fema', :source_id, :chunk_text, :chunk_index, :embedding, :metadata::jsonb)
+                                ('fema', :source_id, :chunk_text, :chunk_index, :embedding, CAST(:metadata AS jsonb))
                             ON CONFLICT (source_type, source_id, chunk_index) DO NOTHING
                         """),
                         {

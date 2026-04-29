@@ -64,10 +64,10 @@ async def retrieve(
         filter_clauses.append("(metadata->>'disaster_type') = :disaster_type")
         params["disaster_type"] = disaster_type
     if date_from:
-        filter_clauses.append("(metadata->>'date')::date >= :date_from::date")
+        filter_clauses.append("(metadata->>'date')::date >= CAST(:date_from AS date)")
         params["date_from"] = date_from
     if date_to:
-        filter_clauses.append("(metadata->>'date')::date <= :date_to::date")
+        filter_clauses.append("(metadata->>'date')::date <= CAST(:date_to AS date)")
         params["date_to"] = date_to
 
     where = "WHERE " + " AND ".join(filter_clauses) if filter_clauses else ""
