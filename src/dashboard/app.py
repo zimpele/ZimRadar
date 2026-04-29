@@ -71,20 +71,25 @@ with col_map:
             if all(k in bbox for k in ("min_lon", "min_lat", "max_lon", "max_lat")):
                 m.add_geojson(
                     {
-                        "type": "Feature",
-                        "geometry": {
-                            "type": "Polygon",
-                            "coordinates": [
-                                [
-                                    [bbox["min_lon"], bbox["min_lat"]],
-                                    [bbox["max_lon"], bbox["min_lat"]],
-                                    [bbox["max_lon"], bbox["max_lat"]],
-                                    [bbox["min_lon"], bbox["max_lat"]],
-                                    [bbox["min_lon"], bbox["min_lat"]],
-                                ]
-                            ],
-                        },
-                        "properties": {"name": region["name"], "tier": tier},
+                        "type": "FeatureCollection",
+                        "features": [
+                            {
+                                "type": "Feature",
+                                "geometry": {
+                                    "type": "Polygon",
+                                    "coordinates": [
+                                        [
+                                            [bbox["min_lon"], bbox["min_lat"]],
+                                            [bbox["max_lon"], bbox["min_lat"]],
+                                            [bbox["max_lon"], bbox["max_lat"]],
+                                            [bbox["min_lon"], bbox["max_lat"]],
+                                            [bbox["min_lon"], bbox["min_lat"]],
+                                        ]
+                                    ],
+                                },
+                                "properties": {"name": region["name"], "tier": tier},
+                            }
+                        ],
                     },
                     layer_name=region["name"],
                     style={"color": color, "fillOpacity": 0.2},
