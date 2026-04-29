@@ -29,8 +29,8 @@ async def fetch_noaa_daily(
 
     async with httpx.AsyncClient(timeout=30.0) as client:
         response = await client.get(NOAA_BASE, headers=headers, params=params)
-        await response.raise_for_status()
-        raw = (await response.json()).get("results", [])
+        response.raise_for_status()
+        raw = response.json().get("results", [])
 
     by_date: dict[str, dict] = defaultdict(
         lambda: {
