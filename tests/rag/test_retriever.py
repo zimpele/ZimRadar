@@ -95,7 +95,7 @@ async def test_retrieve_builds_metadata_filter_clause():
     executed_sqls = []
     mock_session = MagicMock()
     mock_session.execute = AsyncMock(
-        side_effect=lambda sql, params=None: (executed_sqls.append(str(sql)) or iter([]))
+        side_effect=lambda sql, params=None: executed_sqls.append(str(sql)) or iter([])
     )
     mock_session.__aenter__ = AsyncMock(return_value=mock_session)
     mock_session.__aexit__ = AsyncMock(return_value=False)

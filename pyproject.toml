@@ -39,7 +39,7 @@ dev = [
   "pytest-mock>=3.14",
   "moto[s3]>=5.0",
   "factory-boy>=3.3",
-  "ruff>=0.4",
+  "ruff==0.15.12",
   "fakeredis>=2.0",
 ]
 eval = [
