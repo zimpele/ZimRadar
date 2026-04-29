@@ -54,9 +54,10 @@ with col_map:
     if not regions:
         st.info("No regions tracked yet. Add a region to the `regions` table to get started.")
     else:
+        import folium
         import leafmap.foliumap as leafmap
 
-        m = leafmap.Map(center=[37.5, -96], zoom=4)
+        m = leafmap.Map(zoom=4)
 
         for region in regions:
             raw_bbox = region.get("bbox") or {}
@@ -69,31 +70,22 @@ with col_map:
                 "low": "green",
             }.get(tier, "gray")
             if all(k in bbox for k in ("min_lon", "min_lat", "max_lon", "max_lat")):
-                m.add_geojson(
-                    {
-                        "type": "FeatureCollection",
-                        "features": [
-                            {
-                                "type": "Feature",
-                                "geometry": {
-                                    "type": "Polygon",
-                                    "coordinates": [
-                                        [
-                                            [bbox["min_lon"], bbox["min_lat"]],
-                                            [bbox["max_lon"], bbox["min_lat"]],
-                                            [bbox["max_lon"], bbox["max_lat"]],
-                                            [bbox["min_lon"], bbox["max_lat"]],
-                                            [bbox["min_lon"], bbox["min_lat"]],
-                                        ]
-                                    ],
-                                },
-                                "properties": {"name": region["name"], "tier": tier},
-                            }
-                        ],
-                    },
-                    layer_name=region["name"],
-                    style={"color": color, "fillOpacity": 0.2},
-                )
+                folium.Rectangle(
+                    bounds=[
+                        [bbox["min_lat"], bbox["min_lon"]],
+                        [bbox["max_lat"], bbox["max_lon"]],
+                    ],
+                    color=color,
+                    fill=True,
+                    fill_opacity=0.2,
+                    tooltip=f"{region['name']} — {tier}",
+                ).add_to(m)
+
+        if regions:
+            first = json.loads(regions[0]["bbox"]) if isinstance(regions[0].get("bbox"), str) else (regions[0].get("bbox") or {})
+            if all(k in first for k in ("min_lon", "min_lat", "max_lon", "max_lat")):
+                m.fit_bounds([[first["min_lat"], first["min_lon"]], [first["max_lat"], first["max_lon"]]])
+
         m.to_streamlit(height=500)
 
 with col_report:
