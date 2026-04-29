@@ -1,3 +1,4 @@
+import asyncio
 import httpx
 from src.config import get_settings
 
@@ -23,19 +24,28 @@ async def _openrouter(prompt: str, system: str, settings) -> str:
     if system:
         messages.append({"role": "system", "content": system})
     messages.append({"role": "user", "content": prompt})
-    async with httpx.AsyncClient() as client:
-        resp = await client.post(
-            "https://openrouter.ai/api/v1/chat/completions",
-            headers={
-                "Authorization": f"Bearer {settings.openrouter_api_key}",
-                "Content-Type": "application/json",
-                "HTTP-Referer": "https://github.com/zimpele/ZimRadar",
-            },
-            json={"model": settings.openrouter_model, "messages": messages},
-            timeout=60.0,
-        )
+
+    for attempt in range(5):
+        async with httpx.AsyncClient() as client:
+            resp = await client.post(
+                "https://openrouter.ai/api/v1/chat/completions",
+                headers={
+                    "Authorization": f"Bearer {settings.openrouter_api_key}",
+                    "Content-Type": "application/json",
+                    "HTTP-Referer": "https://github.com/zimpele/ZimRadar",
+                },
+                json={"model": settings.openrouter_model, "messages": messages},
+                timeout=60.0,
+            )
+        if resp.status_code == 429:
+            wait = 2 ** attempt
+            await asyncio.sleep(wait)
+            continue
         resp.raise_for_status()
         return resp.json()["choices"][0]["message"]["content"]
+
+    resp.raise_for_status()
+    return resp.json()["choices"][0]["message"]["content"]
 
 
 async def _ollama(prompt: str, system: str, settings) -> str:
