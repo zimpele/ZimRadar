@@ -21,9 +21,8 @@ MIN_HISTORY_ROWS = 30
 class _ChronosPipeline:
     def __init__(self):
         from chronos import ChronosPipeline as _CP
-        self._pipe = _CP.from_pretrained(
-            MODEL_ID, device_map="cpu", torch_dtype=torch.float32
-        )
+
+        self._pipe = _CP.from_pretrained(MODEL_ID, device_map="cpu", torch_dtype=torch.float32)
 
     def forecast(self, series: list[float], horizon: int) -> dict:
         context = torch.tensor(series, dtype=torch.float32).unsqueeze(0)
@@ -137,9 +136,7 @@ async def run_forecast_for_region(region_id: int) -> None:
         veg_data = [float(r.veg_pct) for r in veg_result if r.veg_pct is not None]
 
     vegetation_trend = (
-        float(np.polyfit(range(len(veg_data)), veg_data, 1)[0])
-        if len(veg_data) >= 2
-        else 0.0
+        float(np.polyfit(range(len(veg_data)), veg_data, 1)[0]) if len(veg_data) >= 2 else 0.0
     )
 
     flood_risk_flag = _compute_flood_risk_flag(precip_samples_30d, precip_series)

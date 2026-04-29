@@ -17,6 +17,7 @@ def _make_candidate(text: str, similarity: float = 0.5) -> dict:
 
 def test_vec_to_pg_formats_correctly():
     from src.rag.retriever import _vec_to_pg
+
     result = _vec_to_pg([0.1, -0.2, 0.3])
     assert result.startswith("[")
     assert result.endswith("]")
@@ -52,8 +53,15 @@ async def test_retrieve_reranks_and_returns_top_k():
     from src.rag.retriever import retrieve
 
     rows = [
-        MagicMock(id=i, chunk_text=f"text {i}", source_type="fema",
-                  source_id="DR-100", chunk_index=i, metadata={}, similarity=0.5)
+        MagicMock(
+            id=i,
+            chunk_text=f"text {i}",
+            source_type="fema",
+            source_id="DR-100",
+            chunk_index=i,
+            metadata={},
+            similarity=0.5,
+        )
         for i in range(10)
     ]
 
@@ -87,9 +95,7 @@ async def test_retrieve_builds_metadata_filter_clause():
     executed_sqls = []
     mock_session = MagicMock()
     mock_session.execute = AsyncMock(
-        side_effect=lambda sql, params=None: (
-            executed_sqls.append(str(sql)) or iter([])
-        )
+        side_effect=lambda sql, params=None: executed_sqls.append(str(sql)) or iter([])
     )
     mock_session.__aenter__ = AsyncMock(return_value=mock_session)
     mock_session.__aexit__ = AsyncMock(return_value=False)

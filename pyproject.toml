@@ -26,6 +26,10 @@ dependencies = [
   "pillow>=10.0",
   "xgboost>=2.0",
   "chronos-forecasting>=1.0",
+  "langgraph>=0.2",
+  "fastapi>=0.111",
+  "uvicorn>=0.30",
+  "python-multipart>=0.0.9",
 ]
 
 [project.optional-dependencies]
@@ -35,8 +39,8 @@ dev = [
   "pytest-mock>=3.14",
   "moto[s3]>=5.0",
   "factory-boy>=3.3",
-  "ruff>=0.4",
-  "fakeredis>=3.0",
+  "ruff==0.15.12",
+  "fakeredis>=2.0",
 ]
 eval = [
   "datasets>=2.0",

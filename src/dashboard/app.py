@@ -109,11 +109,50 @@ with col_report:
                 delta=f"Score: {score:.2f}" if score else None,
             )
 
-        if st.button("▶ Run Assessment", type="primary"):
-            st.info(
-                "Pipeline orchestration will be wired in Phase 3. "
-                "Run `ingest_sentinel2_flow`, `ingest_noaa_flow`, and the LangGraph agents manually for now."
-            )
+        region_name = selected
+        if st.button("Run Assessment", type="primary"):
+            if not region_name:
+                st.error("Enter a region name first.")
+            else:
+                import asyncio as _asyncio
+                from src.agents.graph import build_graph
+
+                with st.status("Running assessment…", expanded=True) as status:
+                    st.write("Resolving region and ingesting data…")
+                    initial_state = {
+                        "region_query": region_name,
+                        "retry_count": 0,
+                        "final_report": None,
+                        "low_confidence": False,
+                    }
+                    graph = build_graph()
+                    try:
+                        final_state = _asyncio.run(graph.ainvoke(initial_state))
+                        status.update(label="Assessment complete!", state="complete")
+                    except Exception as exc:
+                        status.update(label="Assessment failed", state="error")
+                        st.error(str(exc))
+                        st.stop()
+
+                if final_state.get("final_report"):
+                    st.subheader("Risk Assessment")
+                    col1, col2, col3 = st.columns(3)
+                    col1.metric("Risk Tier", final_state.get("risk_tier", "—").upper())
+                    col2.metric("Score", f"{final_state.get('risk_score', 0):.2f}")
+                    col3.metric(
+                        "Factuality",
+                        f"{final_state.get('factuality_score', 0):.2f}",
+                        delta="⚠ low confidence" if final_state.get("low_confidence") else None,
+                    )
+                    st.subheader("Narrative Report")
+                    st.markdown(final_state["final_report"])
+                    if final_state.get("citations"):
+                        st.subheader("Sources")
+                        for c in final_state["citations"]:
+                            st.caption(
+                                f"[{c['index']}] {c.get('source_type', 'unknown')} — "
+                                f"{c.get('source_id', '')}: {c.get('text', '')}"
+                            )
 
         report = asyncio.run(get_report(region["id"]))
         if report:
