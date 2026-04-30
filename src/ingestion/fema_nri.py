@@ -16,7 +16,7 @@ PAGE_SIZE = 2000
 NRI_FIELDS = ",".join([
     "STCOFIPS", "STATEABBRV", "COUNTY",
     "RISK_SCORE", "RISK_RATNG", "EAL_SCORE", "SOVI_SCORE", "RESL_SCORE",
-    "CFLD_RISKS", "RFLD_RISKS", "HWAV_RISKS", "DRGT_RISKS",
+    "CFLD_RISKS", "IFLD_RISKS", "HWAV_RISKS", "DRGT_RISKS",
     "WFIR_RISKS", "SWND_RISKS", "TRND_RISKS",
 ])
 
@@ -80,7 +80,7 @@ async def upsert_nri_counties(features: list[dict]) -> int:
             "sovi_score":   _f(attrs, "SOVI_SCORE"),
             "resl_score":   _f(attrs, "RESL_SCORE"),
             "cfld_risks":   _f(attrs, "CFLD_RISKS"),
-            "rfld_risks":   _f(attrs, "RFLD_RISKS"),
+            "rfld_risks":   _f(attrs, "IFLD_RISKS"),  # inland flood = riverine flood
             "hwav_risks":   _f(attrs, "HWAV_RISKS"),
             "drgt_risks":   _f(attrs, "DRGT_RISKS"),
             "wfir_risks":   _f(attrs, "WFIR_RISKS"),
