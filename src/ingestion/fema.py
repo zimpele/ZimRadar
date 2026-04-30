@@ -123,15 +123,16 @@ async def ingest_fema_flow(last_refresh: str | None = None) -> None:
                             INSERT INTO text_embeddings
                                 (source_type, source_id, chunk_text, chunk_index, embedding, metadata)
                             VALUES
-                                ('fema', :source_id, :chunk_text, :chunk_index, :embedding, CAST(:metadata AS jsonb))
+                                ('fema', :source_id, :chunk_text, :chunk_index,
+                                 CAST(:embedding AS vector), CAST(:metadata AS jsonb))
                             ON CONFLICT (source_type, source_id, chunk_index) DO NOTHING
                         """),
                         {
-                            "source_id": disaster_number,
+                            "source_id": str(disaster_number),
                             "chunk_text": chunk,
                             "chunk_index": idx,
-                            "embedding": embedding,
-                            "metadata": json.dumps({"disaster_number": disaster_number}),
+                            "embedding": json.dumps(list(embedding)),
+                            "metadata": json.dumps({"disaster_number": str(disaster_number)}),
                         },
                     )
     except Exception as exc:
