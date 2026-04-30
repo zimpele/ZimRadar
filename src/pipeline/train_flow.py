@@ -87,6 +87,18 @@ async def build_training_data() -> tuple[np.ndarray, np.ndarray]:
             for row in seg_rows.fetchall()
         }
 
+        nri_rows = await session.execute(text("""
+            SELECT county_fips, risk_score, eal_score, sovi_score,
+                   cfld_risks, rfld_risks, wfir_risks, hwav_risks
+            FROM fema_nri_county
+        """))
+        nri_by_fips = {row.county_fips: row for row in nri_rows.fetchall()}
+
+    log.info(
+        "Lookup tables: NOAA=%d counties, seg=%d, NRI=%d",
+        len(noaa_by_county), len(seg_by_county), len(nri_by_fips),
+    )
+
     X_rows, y_rows = [], []
     for row in fema_rows:
         state = row.state
@@ -96,10 +108,20 @@ async def build_training_data() -> tuple[np.ndarray, np.ndarray]:
 
         noaa = noaa_by_county.get((state, fips))
         seg = seg_by_county.get((state, fips))
+        nri = nri_by_fips.get(fips) if fips else None
 
         precip_trend = float(noaa.avg_precip or 0) * 0.01 if noaa else 0.0
         veg_loss = max(0.0, 0.3 - float(seg.avg_veg or 0.3)) if seg else 0.0
         urban = float(seg.avg_urban or 0.1) if seg else 0.1
+
+        nri_risk   = float(nri.risk_score or 0.0) if nri else 0.0
+        nri_eal    = float(nri.eal_score  or 0.0) if nri else 0.0
+        nri_sovi   = float(nri.sovi_score or 0.0) if nri else 0.0
+        nri_flood  = max(
+            float(nri.cfld_risks or 0.0), float(nri.rfld_risks or 0.0)
+        ) if nri else 0.0
+        nri_fire   = float(nri.wfir_risks or 0.0) if nri else 0.0
+        nri_heat   = float(nri.hwav_risks or 0.0) if nri else 0.0
 
         X_rows.append([
             flood_5yr,
@@ -108,6 +130,12 @@ async def build_training_data() -> tuple[np.ndarray, np.ndarray]:
             urban,
             0.0,   # elevation_variance — needs depth results
             0.5,   # infrastructure_age_proxy — static until OSM extraction
+            nri_risk,
+            nri_eal,
+            nri_sovi,
+            nri_flood,
+            nri_fire,
+            nri_heat,
         ])
         y_rows.append(label)
 

@@ -34,3 +34,11 @@ deployments:
     description: "Fetch and process Sentinel-2 satellite tiles"
     tags:
       - ingestion
+
+  - name: ingest-fema-nri
+    entrypoint: src/ingestion/fema_nri.py:ingest_fema_nri_flow
+    work_pool:
+      name: default-agent-pool
+    description: "Download FEMA National Risk Index county scores (run once, refresh annually)"
+    tags:
+      - ingestion

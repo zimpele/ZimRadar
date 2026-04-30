@@ -17,6 +17,13 @@ FEATURE_NAMES = [
     "urban_density",
     "elevation_variance",
     "infrastructure_age_proxy",
+    # FEMA NRI features (0.0 when county not in NRI table)
+    "nri_risk_score",
+    "nri_eal_score",
+    "nri_sovi_score",
+    "nri_flood_risks",    # max(cfld_risks, rfld_risks)
+    "nri_fire_risks",
+    "nri_heat_risks",
 ]
 RISK_TIERS = ["low", "moderate", "high", "critical"]
 TIER_WEIGHTS = {"low": 0.15, "moderate": 0.45, "high": 0.75, "critical": 1.0}
@@ -65,6 +72,12 @@ def _bootstrap_model() -> xgb.XGBClassifier:
         rng.uniform(0, 1, n),       # urban_density
         rng.uniform(0, 100, n),     # elevation_variance
         rng.uniform(0, 1, n),       # infrastructure_age_proxy
+        rng.uniform(0, 100, n),     # nri_risk_score
+        rng.uniform(0, 1e9, n),     # nri_eal_score
+        rng.uniform(0, 1, n),       # nri_sovi_score
+        rng.uniform(0, 100, n),     # nri_flood_risks
+        rng.uniform(0, 100, n),     # nri_fire_risks
+        rng.uniform(0, 100, n),     # nri_heat_risks
     ])
     risk_score = X[:, 0] * 0.3 + np.clip(X[:, 1], 0, None) * 0.2 + X[:, 2] * 0.3 + X[:, 3] * 0.2
     y = np.digitize(risk_score, bins=[0.5, 1.0, 1.8]).clip(0, 3)
@@ -199,13 +212,47 @@ async def build_features_for_region(region_id: int) -> dict[str, float]:
     elevation_variance = min(100.0, float(np.mean(flood_zone_feature_counts)) if flood_zone_feature_counts else 0.0)
     infrastructure_age_proxy = 0.5  # static until OSM feature extraction is added in Phase 3
 
+    async with get_async_session() as session:
+        fips_result = await session.execute(
+            text("SELECT county_fips FROM regions WHERE id = :rid"), {"rid": region_id}
+        )
+        fips_row = fips_result.fetchone()
+        county_fips = fips_row[0] if fips_row else None
+
+        nri_row = None
+        if county_fips:
+            nri_result = await session.execute(
+                text("""
+                    SELECT risk_score, eal_score, sovi_score,
+                           cfld_risks, rfld_risks, wfir_risks, hwav_risks
+                    FROM fema_nri_county WHERE county_fips = :fips
+                """),
+                {"fips": county_fips},
+            )
+            nri_row = nri_result.fetchone()
+
+    nri_risk_score  = float(nri_row.risk_score  or 0.0) if nri_row else 0.0
+    nri_eal_score   = float(nri_row.eal_score   or 0.0) if nri_row else 0.0
+    nri_sovi_score  = float(nri_row.sovi_score  or 0.0) if nri_row else 0.0
+    nri_flood_risks = max(
+        float(nri_row.cfld_risks or 0.0), float(nri_row.rfld_risks or 0.0)
+    ) if nri_row else 0.0
+    nri_fire_risks  = float(nri_row.wfir_risks  or 0.0) if nri_row else 0.0
+    nri_heat_risks  = float(nri_row.hwav_risks  or 0.0) if nri_row else 0.0
+
     return {
-        "flood_events_5yr": float(flood_events),
+        "flood_events_5yr":       float(flood_events),
         "avg_precipitation_trend": precip_trend,
-        "vegetation_loss_pct": vegetation_loss_pct,
-        "urban_density": urban_density,
-        "elevation_variance": elevation_variance,
+        "vegetation_loss_pct":    vegetation_loss_pct,
+        "urban_density":          urban_density,
+        "elevation_variance":     elevation_variance,
         "infrastructure_age_proxy": infrastructure_age_proxy,
+        "nri_risk_score":         nri_risk_score,
+        "nri_eal_score":          nri_eal_score,
+        "nri_sovi_score":         nri_sovi_score,
+        "nri_flood_risks":        nri_flood_risks,
+        "nri_fire_risks":         nri_fire_risks,
+        "nri_heat_risks":         nri_heat_risks,
     }
 
 
