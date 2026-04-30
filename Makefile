@@ -1,4 +1,4 @@
-.PHONY: up down eval pull-model migrate test lint deploy
+.PHONY: up down eval pull-model migrate test lint deploy register-flows
 
 up:
 	docker compose up -d
@@ -25,3 +25,6 @@ lint:
 
 deploy:
 	ssh root@187.77.95.56 "cd /opt/zimradar && git pull && docker compose up -d --build api streamlit worker && docker compose restart api streamlit"
+
+register-flows:
+	ssh root@187.77.95.56 "cd /opt/zimradar && docker compose exec -T worker prefect --no-prompt deploy --all"

@@ -1,0 +1,36 @@
+name: zimradar
+prefect-version: "3"
+
+deployments:
+  - name: train-xgboost-classifier
+    entrypoint: src/pipeline/train_flow.py:train_classifier_flow
+    work_pool:
+      name: default-agent-pool
+    description: "Train XGBoost risk classifier from real FEMA + NOAA data"
+    tags:
+      - ml
+      - training
+
+  - name: ingest-fema
+    entrypoint: src/ingestion/fema.py:ingest_fema_flow
+    work_pool:
+      name: default-agent-pool
+    description: "Bulk sync FEMA disaster declarations"
+    tags:
+      - ingestion
+
+  - name: ingest-noaa
+    entrypoint: src/ingestion/noaa.py:ingest_noaa_flow
+    work_pool:
+      name: default-agent-pool
+    description: "Daily NOAA weather observations"
+    tags:
+      - ingestion
+
+  - name: ingest-sentinel2
+    entrypoint: src/ingestion/sentinel2.py:ingest_sentinel2_flow
+    work_pool:
+      name: default-agent-pool
+    description: "Fetch and process Sentinel-2 satellite tiles"
+    tags:
+      - ingestion
