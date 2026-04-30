@@ -10,6 +10,7 @@ RUN pip install uv
 COPY pyproject.toml .
 RUN uv pip install --system -e .
 COPY src/ ./src/
+COPY prefect.yaml .
 
 FROM base AS worker
 RUN uv pip install --system -e ".[dev]"

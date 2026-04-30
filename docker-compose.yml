@@ -72,6 +72,7 @@ services:
         condition: service_healthy
     volumes:
       - ./src:/app/src
+      - ./prefect.yaml:/app/prefect.yaml
       - zimradar_data:/app/data
 
   streamlit:
