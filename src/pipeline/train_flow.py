@@ -13,11 +13,11 @@ ALL_RISK_TYPES = FLOOD_TYPES + FIRE_TYPES + ("Tornado", "Earthquake", "Drought")
 
 def _label_from_count(n: int) -> int:
     """Map total FEMA disaster declarations (10 yr) → risk tier index."""
-    if n <= 2:
+    if n == 0:
         return 0   # low
-    if n <= 6:
+    if n <= 2:
         return 1   # moderate
-    if n <= 12:
+    if n <= 5:
         return 2   # high
     return 3       # critical
 

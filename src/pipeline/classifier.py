@@ -24,14 +24,18 @@ MODEL_S3_KEY = "models/xgboost_risk_classifier.json"
 
 
 def train_classifier(X: np.ndarray, y: np.ndarray) -> xgb.XGBClassifier:
+    from sklearn.utils.class_weight import compute_sample_weight
+    sample_weights = compute_sample_weight(class_weight="balanced", y=y)
     model = xgb.XGBClassifier(
-        n_estimators=100,
+        n_estimators=200,
         max_depth=4,
-        learning_rate=0.1,
+        learning_rate=0.05,
         eval_metric="mlogloss",
+        subsample=0.8,
+        colsample_bytree=0.8,
         random_state=42,
     )
-    model.fit(X, y)
+    model.fit(X, y, sample_weight=sample_weights)
     return model
 
 
