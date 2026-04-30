@@ -1,4 +1,4 @@
-.PHONY: up down eval pull-model migrate test lint
+.PHONY: up down eval pull-model migrate test lint deploy
 
 up:
 	docker compose up -d
@@ -22,3 +22,6 @@ test:
 lint:
 	ruff check src/ tests/
 	ruff format --check src/ tests/
+
+deploy:
+	ssh root@187.77.95.56 "cd /opt/zimradar && git pull && docker compose up -d --build api streamlit worker && docker compose restart api streamlit"

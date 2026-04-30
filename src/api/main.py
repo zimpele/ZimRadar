@@ -1,5 +1,7 @@
+import os
 import uuid
 import asyncio
+from contextlib import asynccontextmanager
 from fastapi import FastAPI, HTTPException, Header
 from pydantic import BaseModel
 from sqladmin import Admin
@@ -12,8 +14,19 @@ from src.config import get_settings
 from src.storage.db import get_async_session
 from src.storage.models import Report
 
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    settings = get_settings()
+    if settings.langsmith_api_key:
+        os.environ["LANGCHAIN_TRACING_V2"] = "true"
+        os.environ["LANGCHAIN_API_KEY"] = settings.langsmith_api_key
+        os.environ["LANGCHAIN_PROJECT"] = settings.langsmith_project
+    yield
+
+
 settings = get_settings()
-app = FastAPI(title="ZimRadar API", version="0.1.0")
+app = FastAPI(title="ZimRadar API", version="0.1.0", lifespan=lifespan)
 app.add_middleware(SessionMiddleware, secret_key=settings.secret_key)
 
 _admin_engine = create_async_engine(settings.database_url, echo=False)

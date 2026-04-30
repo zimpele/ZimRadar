@@ -27,6 +27,9 @@ class Region(Base):
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     name: Mapped[str] = mapped_column(Text, nullable=False)
     bbox: Mapped[dict[str, Any]] = mapped_column(JSONB, nullable=False)
+    state_code: Mapped[str | None] = mapped_column(Text)
+    county_fips: Mapped[str | None] = mapped_column(Text)
+    geometry: Mapped[dict[str, Any] | None] = mapped_column(JSONB)
     active: Mapped[bool] = mapped_column(Boolean, default=True, server_default=sa_text("true"))
     created_at: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True), server_default=sa_text("now()")

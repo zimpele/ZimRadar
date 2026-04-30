@@ -209,7 +209,6 @@ async def ingest_sentinel2_flow(region_id: int, date_from: str, date_to: str) ->
                     width=TILE_SIZE,
                     dtype="float32",
                     transform=scaled_transform,
-                    crs="EPSG:32632",
                 )
                 with rasterio.open(processed_path, "w", **profile) as dst:
                     dst.write(stacked)

@@ -109,48 +109,19 @@ def _composite_score(tier: str, confidence: float, flood_flag: bool, fire_flag: 
     return w1 * confidence * tier_weight + w2 * float(flood_flag) + w3 * float(fire_flag)
 
 
-def _bbox_to_state_code(bbox: dict) -> str | None:
-    """Rough centroid-based US state lookup for FEMA filtering."""
-    cx = (bbox["min_lon"] + bbox["max_lon"]) / 2
-    cy = (bbox["min_lat"] + bbox["max_lat"]) / 2
-    # Bounding boxes for common states (approximate)
-    STATE_BOXES = {
-        "LA": (-94.0, 28.9, -88.8, 33.0),
-        "TX": (-106.6, 25.8, -93.5, 36.5),
-        "CA": (-124.4, 32.5, -114.1, 42.0),
-        "FL": (-87.6, 24.5, -80.0, 31.0),
-        "NY": (-79.8, 40.5, -71.8, 45.0),
-        "MS": (-91.7, 30.2, -88.1, 35.0),
-        "AL": (-88.5, 30.2, -84.9, 35.0),
-        "GA": (-85.6, 30.4, -80.8, 35.0),
-        "SC": (-83.4, 32.0, -78.5, 35.2),
-        "NC": (-84.3, 33.8, -75.4, 36.6),
-        "VA": (-83.7, 36.5, -75.2, 39.5),
-    }
-    for state, (min_lon, min_lat, max_lon, max_lat) in STATE_BOXES.items():
-        if min_lon <= cx <= max_lon and min_lat <= cy <= max_lat:
-            return state
-    return None
-
-
 async def build_features_for_region(region_id: int) -> dict[str, float]:
     async with get_async_session() as session:
-        # Derive state code from region bbox centroid longitude/latitude
-        bbox_result = await session.execute(
-            text("SELECT bbox FROM regions WHERE id = :rid"), {"rid": region_id}
+        state_result = await session.execute(
+            text("SELECT state_code FROM regions WHERE id = :rid"), {"rid": region_id}
         )
-        bbox_row = bbox_result.fetchone()
-        state_code = None
-        if bbox_row:
-            import json as _j
-            bbox = bbox_row[0] if not isinstance(bbox_row[0], str) else _j.loads(bbox_row[0])
-            state_code = _bbox_to_state_code(bbox)
+        state_row = state_result.fetchone()
+        state_code = state_row[0] if state_row else None
 
-        if state_code:
+        if state_code and not state_code.startswith("DE-"):
             flood_result = await session.execute(
                 text("""
                     SELECT COUNT(*) FROM fema_declarations
-                    WHERE disaster_type ILIKE '%flood%'
+                    WHERE disaster_type IN ('Flood','Hurricane','Severe Storm','Tropical Storm')
                     AND state = :state
                     AND declaration_date >= NOW() - INTERVAL '5 years'
                 """),
@@ -158,11 +129,7 @@ async def build_features_for_region(region_id: int) -> dict[str, float]:
             )
         else:
             flood_result = await session.execute(
-                text("""
-                    SELECT COUNT(*) FROM fema_declarations
-                    WHERE disaster_type ILIKE '%flood%'
-                    AND declaration_date >= NOW() - INTERVAL '5 years'
-                """),
+                text("SELECT 0"),
             )
         flood_events = int(flood_result.scalar() or 0)
 
