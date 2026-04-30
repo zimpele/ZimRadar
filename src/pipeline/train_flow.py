@@ -57,6 +57,14 @@ async def build_training_data() -> tuple[np.ndarray, np.ndarray]:
 
     # For tracked regions, pull real NOAA + segmentation features
     async with get_async_session() as session:
+        # Prefer county_climate_summary (bulk NOAA), fall back to region-based observations
+        climate_rows = await session.execute(text("""
+            SELECT county_fips, avg_precip_mm, precip_trend
+            FROM county_climate_summary
+            WHERE avg_precip_mm IS NOT NULL
+        """))
+        climate_by_fips = {row.county_fips: row for row in climate_rows.fetchall()}
+
         region_rows = await session.execute(text("""
             SELECT r.state_code, r.county_fips,
                    AVG(o.precipitation_mm) AS avg_precip,
@@ -95,8 +103,8 @@ async def build_training_data() -> tuple[np.ndarray, np.ndarray]:
         nri_by_fips = {row.county_fips: row for row in nri_rows.fetchall()}
 
     log.info(
-        "Lookup tables: NOAA=%d counties, seg=%d, NRI=%d",
-        len(noaa_by_county), len(seg_by_county), len(nri_by_fips),
+        "Lookup tables: climate_summary=%d, NOAA_region=%d, seg=%d, NRI=%d",
+        len(climate_by_fips), len(noaa_by_county), len(seg_by_county), len(nri_by_fips),
     )
 
     X_rows, y_rows = [], []
@@ -109,8 +117,14 @@ async def build_training_data() -> tuple[np.ndarray, np.ndarray]:
         noaa = noaa_by_county.get((state, fips))
         seg = seg_by_county.get((state, fips))
         nri = nri_by_fips.get(fips) if fips else None
+        climate = climate_by_fips.get(fips) if fips else None
 
-        precip_trend = float(noaa.avg_precip or 0) * 0.01 if noaa else 0.0
+        if climate:
+            precip_trend = float(climate.precip_trend or 0.0)
+        elif noaa:
+            precip_trend = float(noaa.avg_precip or 0) * 0.01
+        else:
+            precip_trend = 0.0
         veg_loss = max(0.0, 0.3 - float(seg.avg_veg or 0.3)) if seg else 0.0
         urban = float(seg.avg_urban or 0.1) if seg else 0.1
 

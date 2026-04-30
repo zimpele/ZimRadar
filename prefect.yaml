@@ -42,3 +42,11 @@ deployments:
     description: "Download FEMA National Risk Index county scores (run once, refresh annually)"
     tags:
       - ingestion
+
+  - name: ingest-noaa-counties
+    entrypoint: src/ingestion/noaa_counties.py:ingest_noaa_counties_flow
+    work_pool:
+      name: default-agent-pool
+    description: "Bulk NOAA station lookup + 2yr precipitation trend for all FEMA counties"
+    tags:
+      - ingestion
