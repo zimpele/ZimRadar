@@ -81,7 +81,7 @@ async def ingest_fema_flow(last_refresh: str | None = None) -> None:
 
         normalized = [
             {
-                "disaster_number": r.get("disasterNumber", ""),
+                "disaster_number": str(r.get("disasterNumber", "")),
                 "state": r.get("state"),
                 "county_fips": r.get("fipsCountyCode"),
                 "disaster_type": r.get("incidentType"),
