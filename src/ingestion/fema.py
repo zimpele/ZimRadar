@@ -59,9 +59,8 @@ async def upsert_declarations(records: list[dict], session: AsyncSession) -> Non
                 VALUES
                     (:disaster_number, :state, :county_fips, :disaster_type,
                      :declaration_date, :incident_begin, :incident_end, :declaration_title)
-                ON CONFLICT (disaster_number) DO UPDATE SET
+                ON CONFLICT (disaster_number, county_fips) DO UPDATE SET
                     state = EXCLUDED.state,
-                    county_fips = EXCLUDED.county_fips,
                     disaster_type = EXCLUDED.disaster_type,
                     declaration_date = EXCLUDED.declaration_date,
                     incident_begin = EXCLUDED.incident_begin,

@@ -63,7 +63,7 @@ class NOAAObservation(Base):
 class FEMADeclaration(Base):
     __tablename__ = "fema_declarations"
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
-    disaster_number: Mapped[str] = mapped_column(Text, unique=True, nullable=False)
+    disaster_number: Mapped[str | None] = mapped_column(Text)
     state: Mapped[str | None] = mapped_column(Text)
     county_fips: Mapped[str | None] = mapped_column(Text)
     disaster_type: Mapped[str | None] = mapped_column(Text)
@@ -71,6 +71,7 @@ class FEMADeclaration(Base):
     incident_begin: Mapped[date | None] = mapped_column(Date)
     incident_end: Mapped[date | None] = mapped_column(Date)
     declaration_title: Mapped[str | None] = mapped_column(Text)
+    __table_args__ = (UniqueConstraint("disaster_number", "county_fips"),)
 
 
 class SegmentationResult(Base):
