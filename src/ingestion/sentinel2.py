@@ -3,7 +3,6 @@ import logging
 import os
 import tempfile
 from datetime import date as date_
-from pathlib import Path
 
 import httpx
 import numpy as np
@@ -14,7 +13,7 @@ from rasterio.enums import Resampling as RS
 from sqlalchemy import text
 
 from src.config import get_settings
-from src.ingestion.base import log_failure, with_retry
+from src.ingestion.base import log_failure
 from src.pipeline.preprocessing import REFLECTANCE_MAX, TILE_SIZE
 from src.storage.db import get_async_session
 from src.storage.s3 import S3Client
@@ -23,8 +22,7 @@ logger = logging.getLogger(__name__)
 
 STAC_URL = "https://catalogue.dataspace.copernicus.eu/stac"
 TOKEN_URL = (
-    "https://identity.dataspace.copernicus.eu"
-    "/auth/realms/CDSE/protocol/openid-connect/token"
+    "https://identity.dataspace.copernicus.eu/auth/realms/CDSE/protocol/openid-connect/token"
 )
 ODATA_BASE = "https://catalogue.dataspace.copernicus.eu/odata/v1"
 
@@ -197,7 +195,9 @@ async def ingest_sentinel2_flow(region_id: int, date_from: str, date_to: str) ->
                                 profile = src.profile.copy()
                                 scale_x = src.width / TILE_SIZE
                                 scale_y = src.height / TILE_SIZE
-                                scaled_transform = src.transform * src.transform.scale(scale_x, scale_y)
+                                scaled_transform = src.transform * src.transform.scale(
+                                    scale_x, scale_y
+                                )
                         band_arrays.append(arr)
                     stacked = np.clip(np.stack(band_arrays), 0, REFLECTANCE_MAX) / REFLECTANCE_MAX
 
