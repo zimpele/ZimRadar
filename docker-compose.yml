@@ -42,6 +42,8 @@ services:
       PREFECT_UI_API_URL: ${PREFECT_UI_API_URL:-http://localhost:4200/api}
     ports:
       - "4200:4200"
+    volumes:
+      - prefect_data:/root/.prefect
     depends_on:
       postgres:
         condition: service_healthy
@@ -119,3 +121,4 @@ volumes:
   postgres_data:
   ollama_data:
   zimradar_data:
+  prefect_data:
