@@ -167,7 +167,7 @@ async def build_training_data() -> tuple[np.ndarray, np.ndarray]:
 @task(name="train-and-save", log_prints=True)
 def train_and_save(X: np.ndarray, y: np.ndarray) -> dict:
     from sklearn.model_selection import StratifiedKFold
-    from sklearn.metrics import roc_auc_score
+    from sklearn.metrics import roc_auc_score, average_precision_score, f1_score
     from sklearn.preprocessing import label_binarize
     from src.pipeline.classifier import train_classifier, save_classifier_to_s3, RISK_TIERS
 
@@ -175,23 +175,36 @@ def train_and_save(X: np.ndarray, y: np.ndarray) -> dict:
     log.info("Starting 5-fold CV evaluation…")
 
     skf = StratifiedKFold(n_splits=5, shuffle=True, random_state=42)
-    fold_aucs = []
+    fold_roc, fold_pr = [], []
     for train_idx, val_idx in skf.split(X, y):
         model = train_classifier(X[train_idx], y[train_idx])
         proba = model.predict_proba(X[val_idx])
         y_bin = label_binarize(y[val_idx], classes=list(range(len(RISK_TIERS))))
-        auc = roc_auc_score(y_bin, proba, multi_class="ovr", average="macro")
-        fold_aucs.append(auc)
+        fold_roc.append(roc_auc_score(y_bin, proba, multi_class="ovr", average="macro"))
+        fold_pr.append(average_precision_score(y_bin, proba, average="macro"))
 
-    mean_auc = float(np.mean(fold_aucs))
-    log.info("5-fold mean AUC-ROC: %.4f", mean_auc)
+    mean_roc = float(np.mean(fold_roc))
+    mean_pr  = float(np.mean(fold_pr))
+    log.info("5-fold mean ROC-AUC: %.4f  |  PR-AUC: %.4f", mean_roc, mean_pr)
 
     log.info("Training final model on full dataset…")
     final_model = train_classifier(X, y)
+
+    # Per-class F1 on full training set (indicative — not held-out)
+    y_pred = final_model.predict(X)
+    f1_per_class = f1_score(y, y_pred, average=None, labels=list(range(len(RISK_TIERS))))
+    for tier, f1 in zip(RISK_TIERS, f1_per_class):
+        log.info("  F1 %-10s %.4f", tier, f1)
+
     save_classifier_to_s3(final_model)
     log.info("Model saved to S3 at models/xgboost_risk_classifier.json")
 
-    return {"mean_auc": mean_auc, "n_samples": len(y)}
+    return {
+        "mean_roc_auc": mean_roc,
+        "mean_pr_auc":  mean_pr,
+        "n_samples":    len(y),
+        "f1_per_class": {t: float(f) for t, f in zip(RISK_TIERS, f1_per_class)},
+    }
 
 
 @flow(name="train_xgboost_classifier", log_prints=True)
@@ -201,7 +214,7 @@ async def train_classifier_flow() -> dict:
     result = train_and_save(X, y)  # sync task — Prefect runs it in a thread pool
     log = get_run_logger()
     log.info(
-        "Training complete — AUC: %.4f on %d samples",
-        result["mean_auc"], result["n_samples"],
+        "Training complete — ROC-AUC: %.4f  PR-AUC: %.4f  on %d samples",
+        result["mean_roc_auc"], result["mean_pr_auc"], result["n_samples"],
     )
     return result
