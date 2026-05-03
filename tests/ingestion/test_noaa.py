@@ -1,5 +1,5 @@
 import pytest
-from unittest.mock import patch, AsyncMock
+from unittest.mock import patch, AsyncMock, MagicMock
 from sqlalchemy import text
 from src.ingestion.noaa import fetch_noaa_daily, upsert_observations
 
@@ -27,8 +27,8 @@ async def test_fetch_noaa_daily_returns_observations():
         mock_client = AsyncMock()
         mock_cls.return_value.__aenter__.return_value = mock_client
         mock_resp = AsyncMock()
-        mock_resp.json.return_value = mock_response
-        mock_resp.raise_for_status = AsyncMock()
+        mock_resp.json = MagicMock(return_value=mock_response)
+        mock_resp.raise_for_status = MagicMock()
         mock_client.get.return_value = mock_resp
 
         results = await fetch_noaa_daily(
