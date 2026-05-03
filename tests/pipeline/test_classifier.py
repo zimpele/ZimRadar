@@ -81,7 +81,10 @@ def test_composite_score_formula():
     from src.pipeline.classifier import _composite_score
     from src.config import get_settings
 
+    from src.pipeline.classifier import TIER_WEIGHTS
+
     w1, w2, w3 = get_settings().risk_weights
-    score = _composite_score(confidence=0.8, flood_flag=True, fire_flag=False)
-    expected = w1 * 0.8 + w2 * 1.0 + w3 * 0.0
+    tier = "high"
+    score = _composite_score(tier=tier, confidence=0.8, flood_flag=True, fire_flag=False)
+    expected = w1 * 0.8 * TIER_WEIGHTS[tier] + w2 * 1.0 + w3 * 0.0
     assert abs(score - expected) < 1e-6
