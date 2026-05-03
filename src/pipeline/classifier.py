@@ -21,7 +21,7 @@ FEATURE_NAMES = [
     "nri_risk_score",
     "nri_eal_score",
     "nri_sovi_score",
-    "nri_flood_risks",    # max(cfld_risks, rfld_risks)
+    "nri_flood_risks",  # max(cfld_risks, rfld_risks)
     "nri_fire_risks",
     "nri_heat_risks",
 ]
@@ -32,6 +32,7 @@ MODEL_S3_KEY = "models/xgboost_risk_classifier.json"
 
 def train_classifier(X: np.ndarray, y: np.ndarray) -> xgb.XGBClassifier:
     from sklearn.utils.class_weight import compute_sample_weight
+
     sample_weights = compute_sample_weight(class_weight="balanced", y=y)
     model = xgb.XGBClassifier(
         n_estimators=200,
@@ -65,25 +66,30 @@ def _bootstrap_model() -> xgb.XGBClassifier:
     logger.warning("No trained model found — bootstrapping XGBoost on synthetic data.")
     rng = np.random.default_rng(42)
     n = 500
-    X = np.column_stack([
-        rng.poisson(2, n),          # flood_events_5yr
-        rng.normal(0, 1, n),        # avg_precipitation_trend
-        rng.uniform(0, 0.5, n),     # vegetation_loss_pct
-        rng.uniform(0, 1, n),       # urban_density
-        rng.uniform(0, 100, n),     # elevation_variance
-        rng.uniform(0, 1, n),       # infrastructure_age_proxy
-        rng.uniform(0, 100, n),     # nri_risk_score
-        rng.uniform(0, 1e9, n),     # nri_eal_score
-        rng.uniform(0, 1, n),       # nri_sovi_score
-        rng.uniform(0, 100, n),     # nri_flood_risks
-        rng.uniform(0, 100, n),     # nri_fire_risks
-        rng.uniform(0, 100, n),     # nri_heat_risks
-    ])
+    X = np.column_stack(
+        [
+            rng.poisson(2, n),  # flood_events_5yr
+            rng.normal(0, 1, n),  # avg_precipitation_trend
+            rng.uniform(0, 0.5, n),  # vegetation_loss_pct
+            rng.uniform(0, 1, n),  # urban_density
+            rng.uniform(0, 100, n),  # elevation_variance
+            rng.uniform(0, 1, n),  # infrastructure_age_proxy
+            rng.uniform(0, 100, n),  # nri_risk_score
+            rng.uniform(0, 1e9, n),  # nri_eal_score
+            rng.uniform(0, 1, n),  # nri_sovi_score
+            rng.uniform(0, 100, n),  # nri_flood_risks
+            rng.uniform(0, 100, n),  # nri_fire_risks
+            rng.uniform(0, 100, n),  # nri_heat_risks
+        ]
+    )
     risk_score = X[:, 0] * 0.3 + np.clip(X[:, 1], 0, None) * 0.2 + X[:, 2] * 0.3 + X[:, 3] * 0.2
     y = np.digitize(risk_score, bins=[0.5, 1.0, 1.8]).clip(0, 3)
     model = xgb.XGBClassifier(
-        n_estimators=100, max_depth=4, learning_rate=0.1,
-        eval_metric="mlogloss", random_state=42,
+        n_estimators=100,
+        max_depth=4,
+        learning_rate=0.1,
+        eval_metric="mlogloss",
+        random_state=42,
     )
     model.fit(X, y)
     save_classifier_to_s3(model)
@@ -98,6 +104,7 @@ def load_classifier_from_s3() -> xgb.XGBClassifier:
 
     client = S3Client()
     from src.storage.s3 import DATA_ROOT
+
     if not (DATA_ROOT / MODEL_S3_KEY).exists():
         return _bootstrap_model()
 
@@ -201,6 +208,7 @@ async def build_features_for_region(region_id: int) -> dict[str, float]:
         depth_rows = depth_result.fetchall()
 
     import json as _json
+
     flood_zone_feature_counts = []
     for row in depth_rows:
         fz = row.flood_zone_geojson
@@ -209,7 +217,9 @@ async def build_features_for_region(region_id: int) -> dict[str, float]:
         if fz:
             flood_zone_feature_counts.append(len(fz.get("features", [])))
     # High feature count = fragmented low-lying terrain = higher elevation variance proxy
-    elevation_variance = min(100.0, float(np.mean(flood_zone_feature_counts)) if flood_zone_feature_counts else 0.0)
+    elevation_variance = min(
+        100.0, float(np.mean(flood_zone_feature_counts)) if flood_zone_feature_counts else 0.0
+    )
     infrastructure_age_proxy = 0.5  # static until OSM feature extraction is added in Phase 3
 
     async with get_async_session() as session:
@@ -231,28 +241,28 @@ async def build_features_for_region(region_id: int) -> dict[str, float]:
             )
             nri_row = nri_result.fetchone()
 
-    nri_risk_score  = float(nri_row.risk_score  or 0.0) if nri_row else 0.0
-    nri_eal_score   = float(nri_row.eal_score   or 0.0) if nri_row else 0.0
-    nri_sovi_score  = float(nri_row.sovi_score  or 0.0) if nri_row else 0.0
-    nri_flood_risks = max(
-        float(nri_row.cfld_risks or 0.0), float(nri_row.rfld_risks or 0.0)
-    ) if nri_row else 0.0
-    nri_fire_risks  = float(nri_row.wfir_risks  or 0.0) if nri_row else 0.0
-    nri_heat_risks  = float(nri_row.hwav_risks  or 0.0) if nri_row else 0.0
+    nri_risk_score = float(nri_row.risk_score or 0.0) if nri_row else 0.0
+    nri_eal_score = float(nri_row.eal_score or 0.0) if nri_row else 0.0
+    nri_sovi_score = float(nri_row.sovi_score or 0.0) if nri_row else 0.0
+    nri_flood_risks = (
+        max(float(nri_row.cfld_risks or 0.0), float(nri_row.rfld_risks or 0.0)) if nri_row else 0.0
+    )
+    nri_fire_risks = float(nri_row.wfir_risks or 0.0) if nri_row else 0.0
+    nri_heat_risks = float(nri_row.hwav_risks or 0.0) if nri_row else 0.0
 
     return {
-        "flood_events_5yr":       float(flood_events),
+        "flood_events_5yr": float(flood_events),
         "avg_precipitation_trend": precip_trend,
-        "vegetation_loss_pct":    vegetation_loss_pct,
-        "urban_density":          urban_density,
-        "elevation_variance":     elevation_variance,
+        "vegetation_loss_pct": vegetation_loss_pct,
+        "urban_density": urban_density,
+        "elevation_variance": elevation_variance,
         "infrastructure_age_proxy": infrastructure_age_proxy,
-        "nri_risk_score":         nri_risk_score,
-        "nri_eal_score":          nri_eal_score,
-        "nri_sovi_score":         nri_sovi_score,
-        "nri_flood_risks":        nri_flood_risks,
-        "nri_fire_risks":         nri_fire_risks,
-        "nri_heat_risks":         nri_heat_risks,
+        "nri_risk_score": nri_risk_score,
+        "nri_eal_score": nri_eal_score,
+        "nri_sovi_score": nri_sovi_score,
+        "nri_flood_risks": nri_flood_risks,
+        "nri_fire_risks": nri_fire_risks,
+        "nri_heat_risks": nri_heat_risks,
     }
 
 

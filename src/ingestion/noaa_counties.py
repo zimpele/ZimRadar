@@ -1,4 +1,5 @@
 """Prefect flow: bulk NOAA station lookup + precipitation for all FEMA counties."""
+
 import asyncio
 import logging
 import numpy as np
@@ -13,28 +14,34 @@ from src.ingestion.base import log_failure
 logger = logging.getLogger(__name__)
 
 NOAA_STATIONS_URL = "https://www.ncdc.noaa.gov/cdo-web/api/v2/stations"
-NOAA_DATA_URL     = "https://www.ncdc.noaa.gov/cdo-web/api/v2/data"
-CONCURRENCY       = 3    # conservative — share across station + data calls
-REQ_DELAY         = 0.35 # seconds between requests per slot → ~3 req/s per slot
-FETCH_DAYS        = 730  # 2 years of daily data
+NOAA_DATA_URL = "https://www.ncdc.noaa.gov/cdo-web/api/v2/data"
+CONCURRENCY = 3  # conservative — share across station + data calls
+REQ_DELAY = 0.35  # seconds between requests per slot → ~3 req/s per slot
+FETCH_DAYS = 730  # 2 years of daily data
 
 
 def _date_range() -> tuple[str, str]:
-    end   = date.today()
+    end = date.today()
     start = end - timedelta(days=FETCH_DAYS)
     return start.isoformat(), end.isoformat()
 
 
 async def _get(
-    url: str, params: dict, api_key: str,
-    client: httpx.AsyncClient, rate_sem: asyncio.Semaphore,
+    url: str,
+    params: dict,
+    api_key: str,
+    client: httpx.AsyncClient,
+    rate_sem: asyncio.Semaphore,
 ) -> dict:
     """Rate-limited GET with retry on 429."""
     for attempt in range(3):
         async with rate_sem:
             try:
                 resp = await client.get(
-                    url, headers={"token": api_key}, params=params, timeout=30.0,
+                    url,
+                    headers={"token": api_key},
+                    params=params,
+                    timeout=30.0,
                 )
                 if resp.status_code == 429:
                     await asyncio.sleep(2.0 * (attempt + 1))
@@ -51,16 +58,25 @@ async def _get(
 
 
 async def _best_station(
-    fips: str, api_key: str, client: httpx.AsyncClient, rate_sem: asyncio.Semaphore,
+    fips: str,
+    api_key: str,
+    client: httpx.AsyncClient,
+    rate_sem: asyncio.Semaphore,
 ) -> str | None:
-    data = await _get(NOAA_STATIONS_URL, {
-        "locationid": f"FIPS:{fips}",
-        "datasetid": "GHCND",
-        "datatypeid": "PRCP",
-        "limit": 10,
-        "sortfield": "maxdate",
-        "sortorder": "desc",
-    }, api_key, client, rate_sem)
+    data = await _get(
+        NOAA_STATIONS_URL,
+        {
+            "locationid": f"FIPS:{fips}",
+            "datasetid": "GHCND",
+            "datatypeid": "PRCP",
+            "limit": 10,
+            "sortfield": "maxdate",
+            "sortorder": "desc",
+        },
+        api_key,
+        client,
+        rate_sem,
+    )
     results = data.get("results", [])
     # prefer stations active in last 2 years
     cutoff = (date.today() - timedelta(days=730)).isoformat()
@@ -70,18 +86,28 @@ async def _best_station(
 
 
 async def _fetch_precip(
-    station_id: str, start: str, end: str,
-    api_key: str, client: httpx.AsyncClient, rate_sem: asyncio.Semaphore,
+    station_id: str,
+    start: str,
+    end: str,
+    api_key: str,
+    client: httpx.AsyncClient,
+    rate_sem: asyncio.Semaphore,
 ) -> list[float]:
-    data = await _get(NOAA_DATA_URL, {
-        "datasetid":  "GHCND",
-        "stationid":  station_id,
-        "datatypeid": "PRCP",
-        "startdate":  start,
-        "enddate":    end,
-        "units":      "metric",
-        "limit":      1000,
-    }, api_key, client, rate_sem)
+    data = await _get(
+        NOAA_DATA_URL,
+        {
+            "datasetid": "GHCND",
+            "stationid": station_id,
+            "datatypeid": "PRCP",
+            "startdate": start,
+            "enddate": end,
+            "units": "metric",
+            "limit": 1000,
+        },
+        api_key,
+        client,
+        rate_sem,
+    )
     return [r["value"] / 10.0 for r in data.get("results", []) if r.get("value") is not None]
 
 
@@ -142,11 +168,11 @@ async def build_county_climate(skip_existing: bool = True) -> int:
         values = await _fetch_precip(station_id, start, end, api_key, client, rate_sem)
         avg, trend = _compute_trend(values)
         return {
-            "county_fips":   fips,
-            "station_id":    station_id,
+            "county_fips": fips,
+            "station_id": station_id,
             "avg_precip_mm": avg,
-            "precip_trend":  trend,
-            "obs_days":      len(values),
+            "precip_trend": trend,
+            "obs_days": len(values),
         }
 
     async with httpx.AsyncClient() as client:
@@ -156,12 +182,15 @@ async def build_county_climate(skip_existing: bool = True) -> int:
     records = [r for r in results if r is not None]
     log.info(
         "Climate data: %d fetched, %d no station found out of %d",
-        len(records), errors, len(fips_list),
+        len(records),
+        errors,
+        len(fips_list),
     )
 
     async with get_async_session() as session:
         for rec in records:
-            await session.execute(text("""
+            await session.execute(
+                text("""
                 INSERT INTO county_climate_summary
                     (county_fips, station_id, avg_precip_mm, precip_trend, obs_days, updated_at)
                 VALUES
@@ -172,7 +201,9 @@ async def build_county_climate(skip_existing: bool = True) -> int:
                     precip_trend  = EXCLUDED.precip_trend,
                     obs_days      = EXCLUDED.obs_days,
                     updated_at    = now()
-            """), rec)
+            """),
+                rec,
+            )
 
     log.info("Upserted %d county climate summaries", len(records))
     return len(records)

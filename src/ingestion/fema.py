@@ -83,7 +83,8 @@ async def ingest_fema_flow(last_refresh: str | None = None) -> None:
                 "disaster_number": str(r.get("disasterNumber", "")),
                 "state": r.get("state"),
                 "county_fips": (
-                    (str(r.get("fipsStateCode") or "") + str(r.get("fipsCountyCode") or "")).strip() or None
+                    (str(r.get("fipsStateCode") or "") + str(r.get("fipsCountyCode") or "")).strip()
+                    or None
                 ),
                 "disaster_type": r.get("incidentType"),
                 "declaration_date": r.get("declarationDate"),

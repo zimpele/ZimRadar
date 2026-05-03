@@ -60,6 +60,7 @@ async def get_report(region_id: int) -> dict | None:
 def _load_us_states() -> dict | None:
     """Fetch US state boundary GeoJSON (cached for 24 h)."""
     import httpx as _httpx
+
     try:
         resp = _httpx.get(US_STATES_GEOJSON, timeout=15.0)
         resp.raise_for_status()
@@ -72,6 +73,7 @@ def _load_us_states() -> dict | None:
 def _load_county_names() -> dict[str, list[tuple[str, str]]]:
     """Return {state_code: [(county_name, fips), ...]} for all US counties."""
     from src.ingestion.geo_admin import FIPS_TO_STATE, _get_county_features
+
     features = asyncio.run(_get_county_features())
     by_state: dict[str, list[tuple[str, str]]] = {}
     for fips, entry in features.items():
@@ -86,9 +88,9 @@ def _load_county_names() -> dict[str, list[tuple[str, str]]]:
 TIER_COLORS = {"critical": "🔴", "high": "🟠", "moderate": "🟡", "low": "🟢"}
 TIER_COLOR_MAP = {
     "critical": "#d73027",
-    "high":     "#fc8d59",
+    "high": "#fc8d59",
     "moderate": "#fee08b",
-    "low":      "#91cf60",
+    "low": "#91cf60",
 }
 
 # ── Sidebar: Add County ──────────────────────────────────────────────────────
@@ -112,6 +114,7 @@ with st.sidebar:
             if counties_in_state:
                 _, fips = counties_in_state[sel_idx]
                 from src.ingestion.geo_admin import add_county_region
+
                 try:
                     region_id = asyncio.run(add_county_region(fips))
                     st.success(f"Added region #{region_id}")
@@ -183,8 +186,14 @@ with col_map:
                 bbox = json.loads(raw_bbox) if isinstance(raw_bbox, str) else raw_bbox
                 if all(k in bbox for k in ("min_lon", "min_lat", "max_lon", "max_lat")):
                     folium.Rectangle(
-                        bounds=[[bbox["min_lat"], bbox["min_lon"]], [bbox["max_lat"], bbox["max_lon"]]],
-                        color=color, fill=True, fill_opacity=0.45, weight=1.5,
+                        bounds=[
+                            [bbox["min_lat"], bbox["min_lon"]],
+                            [bbox["max_lat"], bbox["max_lon"]],
+                        ],
+                        color=color,
+                        fill=True,
+                        fill_opacity=0.45,
+                        weight=1.5,
                         tooltip=label,
                     ).add_to(m)
 

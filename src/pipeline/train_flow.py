@@ -1,12 +1,20 @@
 """Prefect flow: train XGBoost risk classifier from real FEMA data."""
+
 import logging
 import numpy as np
 from prefect import flow, task, get_run_logger
 
 logger = logging.getLogger(__name__)
 
-FLOOD_TYPES = ("Flood", "Hurricane", "Severe Storm", "Tropical Storm",
-               "Coastal Storm", "Dam/Levee Break", "Typhoon")
+FLOOD_TYPES = (
+    "Flood",
+    "Hurricane",
+    "Severe Storm",
+    "Tropical Storm",
+    "Coastal Storm",
+    "Dam/Levee Break",
+    "Typhoon",
+)
 FIRE_TYPES = ("Fire", "Wildfire")
 ALL_RISK_TYPES = FLOOD_TYPES + FIRE_TYPES + ("Tornado", "Earthquake", "Drought")
 
@@ -14,12 +22,12 @@ ALL_RISK_TYPES = FLOOD_TYPES + FIRE_TYPES + ("Tornado", "Earthquake", "Drought")
 def _label_from_count(n: int) -> int:
     """Map total FEMA disaster declarations (10 yr) → risk tier index."""
     if n == 0:
-        return 0   # low
+        return 0  # low
     if n <= 2:
-        return 1   # moderate
+        return 1  # moderate
     if n <= 5:
-        return 2   # high
-    return 3       # critical
+        return 2  # high
+    return 3  # critical
 
 
 @task(name="build-training-data", log_prints=True)
@@ -32,7 +40,8 @@ async def build_training_data() -> tuple[np.ndarray, np.ndarray]:
 
     async with get_async_session() as session:
         # One row per (state, county_fips) with feature counts
-        rows = await session.execute(text("""
+        rows = await session.execute(
+            text("""
             SELECT
                 state,
                 county_fips,
@@ -47,7 +56,9 @@ async def build_training_data() -> tuple[np.ndarray, np.ndarray]:
             WHERE state IS NOT NULL
             GROUP BY state, county_fips
             HAVING COUNT(*) >= 1
-        """), {"flood_types": list(FLOOD_TYPES)})
+        """),
+            {"flood_types": list(FLOOD_TYPES)},
+        )
         fema_rows = rows.fetchall()
 
     if not fema_rows:
@@ -58,14 +69,17 @@ async def build_training_data() -> tuple[np.ndarray, np.ndarray]:
     # For tracked regions, pull real NOAA + segmentation features
     async with get_async_session() as session:
         # Prefer county_climate_summary (bulk NOAA), fall back to region-based observations
-        climate_rows = await session.execute(text("""
+        climate_rows = await session.execute(
+            text("""
             SELECT county_fips, avg_precip_mm, precip_trend
             FROM county_climate_summary
             WHERE avg_precip_mm IS NOT NULL
-        """))
+        """)
+        )
         climate_by_fips = {row.county_fips: row for row in climate_rows.fetchall()}
 
-        region_rows = await session.execute(text("""
+        region_rows = await session.execute(
+            text("""
             SELECT r.state_code, r.county_fips,
                    AVG(o.precipitation_mm) AS avg_precip,
                    COUNT(o.id)             AS noaa_obs_count
@@ -73,13 +87,12 @@ async def build_training_data() -> tuple[np.ndarray, np.ndarray]:
             JOIN noaa_observations o ON o.region_id = r.id
             WHERE r.state_code IS NOT NULL AND r.county_fips IS NOT NULL
             GROUP BY r.state_code, r.county_fips
-        """))
-        noaa_by_county = {
-            (row.state_code, row.county_fips): row
-            for row in region_rows.fetchall()
-        }
+        """)
+        )
+        noaa_by_county = {(row.state_code, row.county_fips): row for row in region_rows.fetchall()}
 
-        seg_rows = await session.execute(text("""
+        seg_rows = await session.execute(
+            text("""
             SELECT r.state_code, r.county_fips,
                    AVG((sr.area_stats->>'vegetation')::float) AS avg_veg,
                    AVG((sr.area_stats->>'urban')::float)      AS avg_urban
@@ -89,22 +102,25 @@ async def build_training_data() -> tuple[np.ndarray, np.ndarray]:
             WHERE r.state_code IS NOT NULL AND r.county_fips IS NOT NULL
               AND sr.area_stats IS NOT NULL
             GROUP BY r.state_code, r.county_fips
-        """))
-        seg_by_county = {
-            (row.state_code, row.county_fips): row
-            for row in seg_rows.fetchall()
-        }
+        """)
+        )
+        seg_by_county = {(row.state_code, row.county_fips): row for row in seg_rows.fetchall()}
 
-        nri_rows = await session.execute(text("""
+        nri_rows = await session.execute(
+            text("""
             SELECT county_fips, risk_score, eal_score, sovi_score,
                    cfld_risks, rfld_risks, wfir_risks, hwav_risks
             FROM fema_nri_county
-        """))
+        """)
+        )
         nri_by_fips = {row.county_fips: row for row in nri_rows.fetchall()}
 
     log.info(
         "Lookup tables: climate_summary=%d, NOAA_region=%d, seg=%d, NRI=%d",
-        len(climate_by_fips), len(noaa_by_county), len(seg_by_county), len(nri_by_fips),
+        len(climate_by_fips),
+        len(noaa_by_county),
+        len(seg_by_county),
+        len(nri_by_fips),
     )
 
     X_rows, y_rows = [], []
@@ -128,29 +144,29 @@ async def build_training_data() -> tuple[np.ndarray, np.ndarray]:
         veg_loss = max(0.0, 0.3 - float(seg.avg_veg or 0.3)) if seg else 0.0
         urban = float(seg.avg_urban or 0.1) if seg else 0.1
 
-        nri_risk   = float(nri.risk_score or 0.0) if nri else 0.0
-        nri_eal    = float(nri.eal_score  or 0.0) if nri else 0.0
-        nri_sovi   = float(nri.sovi_score or 0.0) if nri else 0.0
-        nri_flood  = max(
-            float(nri.cfld_risks or 0.0), float(nri.rfld_risks or 0.0)
-        ) if nri else 0.0
-        nri_fire   = float(nri.wfir_risks or 0.0) if nri else 0.0
-        nri_heat   = float(nri.hwav_risks or 0.0) if nri else 0.0
+        nri_risk = float(nri.risk_score or 0.0) if nri else 0.0
+        nri_eal = float(nri.eal_score or 0.0) if nri else 0.0
+        nri_sovi = float(nri.sovi_score or 0.0) if nri else 0.0
+        nri_flood = max(float(nri.cfld_risks or 0.0), float(nri.rfld_risks or 0.0)) if nri else 0.0
+        nri_fire = float(nri.wfir_risks or 0.0) if nri else 0.0
+        nri_heat = float(nri.hwav_risks or 0.0) if nri else 0.0
 
-        X_rows.append([
-            flood_5yr,
-            precip_trend,
-            veg_loss,
-            urban,
-            0.0,   # elevation_variance — needs depth results
-            0.5,   # infrastructure_age_proxy — static until OSM extraction
-            nri_risk,
-            nri_eal,
-            nri_sovi,
-            nri_flood,
-            nri_fire,
-            nri_heat,
-        ])
+        X_rows.append(
+            [
+                flood_5yr,
+                precip_trend,
+                veg_loss,
+                urban,
+                0.0,  # elevation_variance — needs depth results
+                0.5,  # infrastructure_age_proxy — static until OSM extraction
+                nri_risk,
+                nri_eal,
+                nri_sovi,
+                nri_flood,
+                nri_fire,
+                nri_heat,
+            ]
+        )
         y_rows.append(label)
 
     X = np.array(X_rows, dtype=np.float32)
@@ -159,7 +175,11 @@ async def build_training_data() -> tuple[np.ndarray, np.ndarray]:
     counts = np.bincount(y, minlength=4)
     log.info(
         "Dataset: %d samples | low=%d moderate=%d high=%d critical=%d",
-        len(y), counts[0], counts[1], counts[2], counts[3],
+        len(y),
+        counts[0],
+        counts[1],
+        counts[2],
+        counts[3],
     )
     return X, y
 
@@ -184,7 +204,7 @@ def train_and_save(X: np.ndarray, y: np.ndarray) -> dict:
         fold_pr.append(average_precision_score(y_bin, proba, average="macro"))
 
     mean_roc = float(np.mean(fold_roc))
-    mean_pr  = float(np.mean(fold_pr))
+    mean_pr = float(np.mean(fold_pr))
     log.info("5-fold mean ROC-AUC: %.4f  |  PR-AUC: %.4f", mean_roc, mean_pr)
 
     log.info("Training final model on full dataset…")
@@ -201,8 +221,8 @@ def train_and_save(X: np.ndarray, y: np.ndarray) -> dict:
 
     return {
         "mean_roc_auc": mean_roc,
-        "mean_pr_auc":  mean_pr,
-        "n_samples":    len(y),
+        "mean_pr_auc": mean_pr,
+        "n_samples": len(y),
         "f1_per_class": {t: float(f) for t, f in zip(RISK_TIERS, f1_per_class)},
     }
 
@@ -215,6 +235,8 @@ async def train_classifier_flow() -> dict:
     log = get_run_logger()
     log.info(
         "Training complete — ROC-AUC: %.4f  PR-AUC: %.4f  on %d samples",
-        result["mean_roc_auc"], result["mean_pr_auc"], result["n_samples"],
+        result["mean_roc_auc"],
+        result["mean_pr_auc"],
+        result["n_samples"],
     )
     return result
