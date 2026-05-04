@@ -51,6 +51,14 @@ async def test_run_classification_for_region_writes_risk_assessment():
         "urban_density": 0.3,
         "elevation_variance": 20.0,
         "infrastructure_age_proxy": 0.5,
+        "nri_risk_score": 0.0,
+        "nri_eal_score": 0.0,
+        "nri_sovi_score": 0.0,
+        "nri_flood_risks": 0.0,
+        "nri_fire_risks": 0.0,
+        "nri_heat_risks": 0.0,
+        "storm_events_5yr": 0.0,
+        "storm_damage_per_capita": 0.0,
     }
 
     mock_forecast_row = MagicMock(flood_risk_flag=True, fire_risk_flag=False)

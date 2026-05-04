@@ -24,6 +24,9 @@ FEATURE_NAMES = [
     "nri_flood_risks",  # max(cfld_risks, rfld_risks)
     "nri_fire_risks",
     "nri_heat_risks",
+    # NOAA Storm Events features (0.0 when county not in storm summary)
+    "storm_events_5yr",
+    "storm_damage_per_capita",
 ]
 RISK_TIERS = ["low", "moderate", "high", "critical"]
 TIER_WEIGHTS = {"low": 0.15, "moderate": 0.45, "high": 0.75, "critical": 1.0}
@@ -80,6 +83,8 @@ def _bootstrap_model() -> xgb.XGBClassifier:
             rng.uniform(0, 100, n),  # nri_flood_risks
             rng.uniform(0, 100, n),  # nri_fire_risks
             rng.uniform(0, 100, n),  # nri_heat_risks
+            rng.poisson(3, n),       # storm_events_5yr
+            rng.uniform(0, 500, n),  # storm_damage_per_capita
         ]
     )
     risk_score = X[:, 0] * 0.3 + np.clip(X[:, 1], 0, None) * 0.2 + X[:, 2] * 0.3 + X[:, 3] * 0.2
@@ -241,6 +246,7 @@ async def build_features_for_region(region_id: int) -> dict[str, float]:
         nri_row = None
         elev_row = None
         infra_row = None
+        storm_row = None
         if county_fips:
             nri_result = await session.execute(
                 text("""
@@ -268,6 +274,15 @@ async def build_features_for_region(region_id: int) -> dict[str, float]:
                 {"fips": county_fips},
             )
             infra_row = infra_result.fetchone()
+
+            storm_result = await session.execute(
+                text("""
+                    SELECT storm_events_5yr, storm_damage_per_capita
+                    FROM county_storm_summary WHERE county_fips = :fips
+                """),
+                {"fips": county_fips},
+            )
+            storm_row = storm_result.fetchone()
 
     # elevation_variance: prefer DB elevation_std_m, fall back to flood-zone proxy
     if elev_row and elev_row.elevation_std_m is not None:
@@ -307,6 +322,8 @@ async def build_features_for_region(region_id: int) -> dict[str, float]:
         "nri_flood_risks": nri_flood_risks,
         "nri_fire_risks": nri_fire_risks,
         "nri_heat_risks": nri_heat_risks,
+        "storm_events_5yr": float(storm_row.storm_events_5yr) if storm_row else 0.0,
+        "storm_damage_per_capita": float(storm_row.storm_damage_per_capita) if storm_row else 0.0,
     }
 
 
