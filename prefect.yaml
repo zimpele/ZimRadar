@@ -92,3 +92,12 @@ deployments:
     description: "NOAA Storm Events (2020-2024) + Census population → county_storm_summary"
     tags:
       - ingestion
+
+  - name: generate-county-reports
+    entrypoint: src/pipeline/report_flow.py:generate_county_reports_flow
+    work_pool:
+      name: default-agent-pool
+    description: "LangGraph ReAct agent — gathers evidence from DB tools and writes AI risk briefings per county"
+    tags:
+      - agents
+      - reports
