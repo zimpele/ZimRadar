@@ -67,6 +67,8 @@ FEATURE_LABELS = {
     "nri_flood_risks": "NRI Flood Risk",
     "nri_fire_risks": "NRI Fire Risk",
     "nri_heat_risks": "NRI Heat Risk",
+    "storm_events_5yr": "Storm Events (5yr)",
+    "storm_damage_per_capita": "Storm Damage per Capita ($)",
 }
 
 # ── Cached resources ──────────────────────────────────────────────────────────
@@ -151,10 +153,11 @@ async def get_report(region_id: int) -> dict | None:
     async with get_async_session() as session:
         result = await session.execute(
             text("""
-                SELECT narrative, citations, factuality_score, low_confidence, created_at
-                FROM reports
+                SELECT briefing_md, top_drivers, citations, validation_pass,
+                       flagged, confidence, generated_at
+                FROM county_reports
                 WHERE region_id = :region_id
-                ORDER BY created_at DESC LIMIT 1
+                ORDER BY generated_at DESC LIMIT 1
             """),
             {"region_id": region_id},
         )
@@ -430,62 +433,69 @@ with tab_map:
 
             st.divider()
 
-            # Run Assessment
-            if st.button(
-                "🔮 Run Assessment",
-                type="primary",
-                help=f"Local model: {_settings.ollama_model}",
-            ):
-                import asyncio as _asyncio
-                from src.agents.graph import build_graph
+            # Generate AI Briefing
+            if tier:
+                if st.button(
+                    "📝 Generate AI Briefing",
+                    type="primary",
+                    help=f"LangGraph agent → Gemma2 via Ollama ({_settings.ollama_model})",
+                ):
+                    from src.agents.report_agent import generate_county_report
 
-                with st.status("Running assessment…", expanded=True) as status:
-                    st.write("Resolving region and ingesting data…")
-                    graph = build_graph()
-                    try:
-                        final_state = _asyncio.run(
-                            graph.ainvoke(
-                                {
-                                    "region_query": selected,
-                                    "retry_count": 0,
-                                    "final_report": None,
-                                    "low_confidence": False,
-                                }
+                    _shap = json.loads(raw_shap) if isinstance(raw_shap, str) else (raw_shap or {})
+                    _feats = json.loads(raw_features) if isinstance(raw_features, str) else (raw_features or {})
+                    with st.status("Generating AI risk briefing…", expanded=True) as _status:
+                        try:
+                            asyncio.run(
+                                generate_county_report(
+                                    region_id=region["id"],
+                                    county_fips=region.get("county_fips") or "",
+                                    county_name=region["name"],
+                                    risk_tier=tier,
+                                    confidence=float(conf or 0.0),
+                                    shap_dict=_shap,
+                                    features=_feats,
+                                )
                             )
-                        )
-                        status.update(label="Assessment complete!", state="complete")
-                    except Exception as exc:
-                        status.update(label="Assessment failed", state="error")
-                        st.error(str(exc))
-                        st.stop()
-
-                if final_state.get("final_report"):
-                    r1, r2, r3 = st.columns(3)
-                    r1.metric("Risk Tier", final_state.get("risk_tier", "—").upper())
-                    r2.metric("Score", f"{final_state.get('risk_score', 0):.2f}")
-                    r3.metric(
-                        "Factuality",
-                        f"{final_state.get('factuality_score', 0):.2f}",
-                        delta="⚠ low confidence" if final_state.get("low_confidence") else None,
-                    )
-                    st.markdown(final_state["final_report"])
+                            _status.update(label="Briefing generated!", state="complete")
+                        except Exception as exc:
+                            _status.update(label="Failed", state="error")
+                            st.error(str(exc))
                     st.rerun()
+            else:
+                st.info("County must be classified before generating a briefing.")
 
-            # Saved narrative report
+            # AI Risk Briefing panel
             report = asyncio.run(get_report(region["id"]))
             if report:
-                if report.get("low_confidence"):
-                    st.warning("⚠ Low confidence — factuality score below threshold.")
-                st.markdown(report["narrative"])
-                if report.get("citations"):
+                st.markdown("#### AI Risk Briefing")
+                if report.get("flagged"):
+                    st.warning("⚠ Report flagged — validation failed or exceeded retry limit.")
+
+                top_drivers = report.get("top_drivers") or []
+                if isinstance(top_drivers, str):
+                    top_drivers = json.loads(top_drivers)
+                if top_drivers:
+                    st.markdown("**Key risk drivers:** " + " · ".join(f"`{d}`" for d in top_drivers))
+
+                briefing = report.get("briefing_md") or ""
+                if briefing:
+                    st.markdown(briefing)
+
+                citations = report.get("citations") or []
+                if isinstance(citations, str):
+                    citations = json.loads(citations)
+                if citations:
                     st.caption(
                         "**Sources:** "
-                        + " · ".join(f"[{i + 1}] {c}" for i, c in enumerate(report["citations"]))
+                        + " · ".join(f"[{i + 1}] {c}" for i, c in enumerate(citations))
                     )
-                if report.get("factuality_score") is not None:
-                    st.caption(f"Factuality score: {report['factuality_score']:.2f}")
-            elif not tier:
-                st.info("No report yet. Click **Run Assessment** to generate one.")
+                st.caption(
+                    f"Generated: {report['generated_at']} · "
+                    f"Validation: {'✅ passed' if report.get('validation_pass') else '⚠ flagged'}"
+                )
+            elif tier:
+                st.info("No briefing yet — click **Generate AI Briefing** above, or run the `generate-county-reports` Prefect flow for all counties.")
 
 # ── Tab 2: Model Insights ─────────────────────────────────────────────────────
 
