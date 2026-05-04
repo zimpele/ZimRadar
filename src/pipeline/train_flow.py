@@ -133,14 +133,23 @@ async def build_training_data() -> tuple[np.ndarray, np.ndarray]:
         )
         infra_by_fips = {row.county_fips: row for row in infra_rows.fetchall()}
 
+        storm_rows = await session.execute(
+            text("""
+            SELECT county_fips, storm_events_5yr, storm_damage_per_capita
+            FROM county_storm_summary
+        """)
+        )
+        storm_by_fips = {row.county_fips: row for row in storm_rows.fetchall()}
+
     log.info(
-        "Lookup tables: climate_summary=%d, NOAA_region=%d, seg=%d, NRI=%d, elevation=%d, infra=%d",
+        "Lookup tables: climate_summary=%d, NOAA_region=%d, seg=%d, NRI=%d, elevation=%d, infra=%d, storm=%d",
         len(climate_by_fips),
         len(noaa_by_county),
         len(seg_by_county),
         len(nri_by_fips),
         len(elevation_by_fips),
         len(infra_by_fips),
+        len(storm_by_fips),
     )
 
     X_rows, y_rows = [], []
@@ -156,6 +165,7 @@ async def build_training_data() -> tuple[np.ndarray, np.ndarray]:
         climate = climate_by_fips.get(fips) if fips else None
         elev = elevation_by_fips.get(fips) if fips else None
         infra = infra_by_fips.get(fips) if fips else None
+        storm = storm_by_fips.get(fips) if fips else None
 
         if climate:
             precip_trend = float(climate.precip_trend or 0.0)
@@ -176,6 +186,9 @@ async def build_training_data() -> tuple[np.ndarray, np.ndarray]:
         nri_fire = float(nri.wfir_risks or 0.0) if nri else 0.0
         nri_heat = float(nri.hwav_risks or 0.0) if nri else 0.0
 
+        storm_events = float(storm.storm_events_5yr or 0.0) if storm else 0.0
+        storm_damage_pc = float(storm.storm_damage_per_capita or 0.0) if storm else 0.0
+
         X_rows.append(
             [
                 flood_5yr,
@@ -190,6 +203,8 @@ async def build_training_data() -> tuple[np.ndarray, np.ndarray]:
                 nri_flood,
                 nri_fire,
                 nri_heat,
+                storm_events,
+                storm_damage_pc,
             ]
         )
         y_rows.append(label)
