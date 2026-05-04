@@ -84,3 +84,11 @@ deployments:
     description: "OSM building start_date → median infrastructure age per county"
     tags:
       - ingestion
+
+  - name: ingest-noaa-storm-events
+    entrypoint: src/ingestion/noaa_storm_events.py:ingest_storm_events_flow
+    work_pool:
+      name: default-agent-pool
+    description: "NOAA Storm Events (2020-2024) + Census population → county_storm_summary"
+    tags:
+      - ingestion
