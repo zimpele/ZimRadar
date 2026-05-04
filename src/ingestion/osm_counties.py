@@ -17,7 +17,8 @@ from src.storage.db import get_async_session
 logger = logging.getLogger(__name__)
 
 OVERPASS_URL = "https://overpass-api.de/api/interpreter"
-CONCURRENCY = 2
+CONCURRENCY = 1
+RETRY_DELAYS = (10, 30, 60)  # seconds to wait after 429, then give up
 CURRENT_YEAR = date.today().year
 MIN_YEAR = 1800
 # OSM tags that may hold a construction year, tried in order
@@ -54,13 +55,24 @@ def _development_score(building_count: int) -> float:
 
 async def _overpass_post(query: str, client: httpx.AsyncClient, sem: asyncio.Semaphore) -> dict:
     async with sem:
-        try:
-            resp = await client.post(OVERPASS_URL, data={"data": query}, timeout=60.0)
-            resp.raise_for_status()
-            return resp.json()
-        except Exception as exc:
-            logger.warning("Overpass request failed: %s", exc)
-            return {}
+        for attempt, delay in enumerate((*RETRY_DELAYS, None)):
+            try:
+                resp = await client.post(OVERPASS_URL, data={"data": query}, timeout=60.0)
+                resp.raise_for_status()
+                return resp.json()
+            except httpx.HTTPStatusError as exc:
+                if exc.response.status_code == 429 and delay is not None:
+                    logger.warning(
+                        "Overpass 429 — retrying in %ds (attempt %d)", delay, attempt + 1
+                    )
+                    await asyncio.sleep(delay)
+                else:
+                    logger.warning("Overpass request failed: %s", exc)
+                    return {}
+            except Exception as exc:
+                logger.warning("Overpass request failed: %s", exc)
+                return {}
+        return {}
 
 
 async def _process_county(
@@ -84,7 +96,9 @@ async def _process_county(
     ob = f"{min_lat},{min_lon},{max_lat},{max_lon}"
 
     # 1. Count all buildings (fast — no element download)
-    count_q = f'[out:json][timeout:30];(way["building"]({ob});relation["building"]({ob}););out count;'
+    count_q = (
+        f'[out:json][timeout:30];(way["building"]({ob});relation["building"]({ob}););out count;'
+    )
     count_data = await _overpass_post(count_q, client, sem)
     elements = count_data.get("elements", [])
     if not elements:
@@ -93,8 +107,7 @@ async def _process_county(
 
     # 2. Query buildings with any known age tag (tiny result set)
     age_union = "".join(
-        f'way["building"]["{t}"]({ob});relation["building"]["{t}"]({ob});'
-        for t in AGE_TAGS
+        f'way["building"]["{t}"]({ob});relation["building"]["{t}"]({ob});' for t in AGE_TAGS
     )
     age_q = f"[out:json][timeout:30];({age_union});out tags;"
     age_data = await _overpass_post(age_q, client, sem)
