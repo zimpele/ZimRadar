@@ -96,20 +96,20 @@ def _search_tiles(bbox: dict, date_from: str, date_to: str, max_items: int = 3) 
 
 
 def _download_file(url: str, token: str, dest_path: str) -> None:
-    """Download via OData Nodes, following redirects manually."""
-    session = httpx.Client(timeout=300.0)
+    """Download via OData Nodes, following redirects manually with streaming."""
+    timeout = httpx.Timeout(connect=30.0, read=300.0, write=30.0, pool=10.0)
     headers = {"Authorization": f"Bearer {token}"}
-    # Follow redirects manually — OData may redirect to the actual blob URL
-    response = session.get(url, headers=headers, follow_redirects=False)
-    while response.status_code in (301, 302, 303, 307, 308):
-        redirect_url = response.headers["Location"]
-        response = session.get(redirect_url, headers=headers, follow_redirects=False)
-    response.raise_for_status()
-    with open(dest_path, "wb") as f:
-        f.write(response.content)
+    with httpx.Client(timeout=timeout) as session:
+        response = session.get(url, headers=headers, follow_redirects=False)
+        while response.status_code in (301, 302, 303, 307, 308):
+            redirect_url = response.headers["Location"]
+            response = session.get(redirect_url, headers=headers, follow_redirects=False)
+        response.raise_for_status()
+        with open(dest_path, "wb") as f:
+            f.write(response.content)
 
 
-@flow(name="ingest_sentinel2", log_prints=True)
+@flow(name="ingest_sentinel2", log_prints=True, timeout_seconds=1800)
 async def ingest_sentinel2_flow(region_id: int, date_from: str, date_to: str) -> None:
     settings = get_settings()
     s3 = S3Client()
