@@ -19,9 +19,9 @@ ZimRadar fuses satellite imagery, NOAA weather records, FEMA disaster history, N
 | Features | **14 engineered** |
 | FEMA NRI counties | 3 232 |
 | NOAA stations mapped | 1 571+ counties |
-| Storm Events (2020–2024) | 8 399 county-level events (CA + FL) |
-| Sentinel-2 tiles ingested | 376 across 126 regions |
-| Counties with SHAP scores | 125 (CA + FL fully classified) |
+| Storm Events (2020–2024) | 30 000+ county-level events (CA, CO, FL, IA, NC) |
+| Sentinel-2 tiles ingested | 1 000+ across 388 regions (5 states) |
+| Counties with SHAP scores | 125 (CA + FL, retraining in progress for 5-state coverage) |
 | Risk tiers | low / moderate / high / critical |
 
 ---
@@ -96,8 +96,8 @@ ZimRadar fuses satellite imagery, NOAA weather records, FEMA disaster history, N
 | `nri_flood_risks` | FEMA NRI (coastal + inland flood) | 3 232 counties |
 | `nri_fire_risks` | FEMA NRI (wildfire) | 3 232 counties |
 | `nri_heat_risks` | FEMA NRI (heat wave) | 3 232 counties |
-| `storm_events_5yr` | NOAA Storm Events DB (2020–2024, no auth required) | 124 counties (CA + FL) |
-| `storm_damage_per_capita` | NOAA Storm Events + Census ACS 5-yr population | 124 counties (CA + FL) |
+| `storm_events_5yr` | NOAA Storm Events DB (2020–2024, no auth required) | 5-state coverage (CA, CO, FL, IA, NC) |
+| `storm_damage_per_capita` | NOAA Storm Events + Census ACS 5-yr population | 5-state coverage (CA, CO, FL, IA, NC) |
 
 ---
 
@@ -126,9 +126,14 @@ ZimRadar fuses satellite imagery, NOAA weather records, FEMA disaster history, N
 - **CrossEncoder** — `ms-marco-MiniLM-L-6-v2` reranking with metadata filters
 - **LangSmith** — tracing for all LLM and retrieval calls
 
+### AI report generation (Phase 3)
+- **LangGraph ReAct agent** — autonomously selects evidence tools based on top SHAP features (FEMA flood history, NOAA storm events, NRI comparison, climate trend, infrastructure); deterministic validator with repair loop (max 2 retries); stores structured JSON briefings to `county_reports`
+- **Gemma2:9b via Ollama** — generates 3-paragraph county risk briefings grounded in SHAP values; runs fully on-server, no data leaves the VPS
+- **Structured output schema** — `top_drivers`, `supporting_evidence`, `uncertainty_notes`, `briefing_md`, `citations`; deterministic validation checks all numeric claims against source fields
+
 ### Observability
-- **Prefect 3** — 10 deployments: `ingest-fema`, `ingest-fema-nri`, `ingest-noaa`, `ingest-noaa-counties`, `ingest-sentinel2`, `ingest-elevation`, `ingest-osm-counties`, `ingest-noaa-storm-events`, `seed-state-regions`, `train-xgboost-classifier`
-- **Streamlit** — live Folium map with composite-score gradient (yellow→orange→red), SHAP waterfall charts per county, feature importance, risk distribution donut
+- **Prefect 3** — 12 deployments: `ingest-fema`, `ingest-fema-nri`, `ingest-noaa`, `ingest-noaa-counties`, `ingest-sentinel2`, `ingest-elevation`, `ingest-osm-counties`, `ingest-noaa-storm-events`, `seed-state-regions`, `bulk-ingest-sentinel2-states`, `train-xgboost-classifier`, `generate-county-reports`
+- **Streamlit** — live Folium map with composite-score gradient (yellow→orange→red), SHAP waterfall charts per county, AI Risk Briefing panel, feature importance, risk distribution donut
 
 ---
 
@@ -289,5 +294,5 @@ tests/
 - [x] Phase 2 — ZoeDepth, Chronos forecasting, XGBoost classifier (AUC 0.92), RAG retriever
 - [x] Phase 2.5 — FEMA NRI integration, bulk NOAA county coverage, LangSmith tracing
 - [x] Phase 2.6 — OSM infrastructure age, USGS elevation, 14-feature classifier (AUC 0.9182), SHAP explainability, NOAA Storm Events + Census population, composite-score gradient map
-- [ ] Phase 3 — LangGraph agent orchestration, LLM narrative reports per county, Validator Agent
-- [ ] Phase 4 — Expand to TX / NY / GA for tier diversity, drift detection, automated retraining trigger, FastAPI `/assess` endpoint, public demo
+- [x] Phase 3 — LangGraph ReAct agent; SHAP-driven tool selection; Gemma2 structured briefings; deterministic validator + repair loop; `county_reports` table; batch Prefect flow; AI Risk Briefing panel in dashboard
+- [ ] Phase 4 — Retrain classifier on 5-state data, drift detection, automated retraining trigger, FastAPI `/assess` endpoint, public demo
