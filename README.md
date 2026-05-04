@@ -2,7 +2,9 @@
 
 **Multi-agent AI system for county-level climate and infrastructure risk assessment.**
 
-ZimRadar fuses satellite imagery, NOAA weather records, FEMA disaster history, and the FEMA National Risk Index to produce per-county risk scores, trend forecasts, and LLM-generated narrative reports — all orchestrated through a Prefect pipeline and surfaced in a live Streamlit dashboard.
+ZimRadar fuses satellite imagery, NOAA weather records, FEMA disaster history, NOAA Storm Events, and the FEMA National Risk Index to produce per-county risk scores with SHAP-powered explainability — all orchestrated through a Prefect pipeline and surfaced in a live Streamlit dashboard.
+
+**Live demo:** `http://187.77.95.56:8501`
 
 ---
 
@@ -10,11 +12,16 @@ ZimRadar fuses satellite imagery, NOAA weather records, FEMA disaster history, a
 
 | Metric | Value |
 |---|---|
-| XGBoost AUC-ROC (5-fold CV) | **0.92** |
+| XGBoost AUC-ROC (5-fold CV) | **0.9182** |
+| XGBoost PR-AUC (5-fold CV) | **0.6934** |
+| F1 — critical tier | **0.898** |
 | Training samples | 3 324 US counties |
-| Features | 12 engineered |
+| Features | **14 engineered** |
 | FEMA NRI counties | 3 232 |
 | NOAA stations mapped | 1 571+ counties |
+| Storm Events (2020–2024) | 8 399 county-level events (CA + FL) |
+| Sentinel-2 tiles ingested | 376 across 126 regions |
+| Counties with SHAP scores | 125 (CA + FL fully classified) |
 | Risk tiers | low / moderate / high / critical |
 
 ---
@@ -73,38 +80,46 @@ ZimRadar fuses satellite imagery, NOAA weather records, FEMA disaster history, a
 
 ---
 
-## Feature engineering (XGBoost)
+## Feature engineering (XGBoost — 14 features)
 
 | Feature | Source | Coverage |
 |---|---|---|
-| `flood_events_5yr` | FEMA Declarations | ~3 300 counties |
-| `avg_precipitation_trend` | NOAA CDO (bulk station lookup) | ~1 600 counties |
-| `vegetation_loss_pct` | SegFormer / Sentinel-2 | tracked regions |
-| `urban_density` | SegFormer / Sentinel-2 | tracked regions |
-| `elevation_variance` | ZoeDepth depth results | tracked regions |
-| `infrastructure_age_proxy` | static (OSM planned) | — |
+| `flood_events_5yr` | FEMA Declarations (county FIPS filtered) | ~3 300 counties |
+| `avg_precipitation_trend` | NOAA CDO bulk station lookup | ~1 600 counties |
+| `vegetation_loss_pct` | SegFormer / Sentinel-2 (EuroSAT fine-tuned) | 126 tracked regions |
+| `urban_density` | SegFormer / Sentinel-2 | 126 tracked regions |
+| `elevation_variance` | USGS elevation std from county DEM | 173 counties |
+| `infrastructure_age_proxy` | OSM Overpass API (building `start_date` tags) | 170 counties |
 | `nri_risk_score` | FEMA National Risk Index | 3 232 counties |
 | `nri_eal_score` | FEMA NRI (expected annual loss) | 3 232 counties |
 | `nri_sovi_score` | FEMA NRI (social vulnerability) | 3 232 counties |
 | `nri_flood_risks` | FEMA NRI (coastal + inland flood) | 3 232 counties |
 | `nri_fire_risks` | FEMA NRI (wildfire) | 3 232 counties |
 | `nri_heat_risks` | FEMA NRI (heat wave) | 3 232 counties |
+| `storm_events_5yr` | NOAA Storm Events DB (2020–2024, no auth required) | 124 counties (CA + FL) |
+| `storm_damage_per_capita` | NOAA Storm Events + Census ACS 5-yr population | 124 counties (CA + FL) |
 
 ---
 
 ## What's implemented
 
 ### Data ingestion
-- **Sentinel-2** — nightly tile fetches via `sentinelsat`; processed tiles stored in S3
-- **NOAA CDO** — daily precipitation, temperature, soil moisture per tracked region; bulk county climate summary (2yr trend) across all FEMA counties
+- **Sentinel-2** — tile fetches via Copernicus STAC API; SegFormer + ZoeDepth processing; tiles stored in S3
+- **NOAA CDO** — daily precipitation, temperature per tracked region; bulk county climate summary (2yr trend) across all FEMA counties
+- **NOAA Storm Events** — 5-year county-level event history (2020–2024) via free bulk CSV; damage string parsing (K/M/B); no auth required
+- **Census ACS** — county population from ACS 5-year estimates; single HTTP request, no API key; used for per-capita damage normalization
 - **FEMA Declarations** — full 60k+ record bulk sync with 5-digit county FIPS; incremental delta updates
 - **FEMA National Risk Index** — 3 232 US counties, 15 hazard columns, fetched from ArcGIS FeatureServer
+- **OSM Overpass API** — building `start_date` tags → median infrastructure age per county; exponential backoff, concurrency-limited
+- **USGS elevation** — county-level elevation standard deviation from DEM data
 
 ### ML pipeline
 - **SegFormer** — EuroSAT-fine-tuned land-use segmentation (water / vegetation / urban / bare soil / burn scar)
 - **ZoeDepth** — monocular depth estimation → flood-accumulation zone detection
 - **Chronos** — 30/60/90-day probabilistic flood and fire risk flags
-- **XGBoost classifier** — 4-tier county risk label with balanced sample weights; 5-fold stratified CV; AUC 0.92
+- **XGBoost classifier** — 14-feature county risk model; balanced sample weights; 5-fold stratified CV; AUC 0.9182, PR-AUC 0.6934
+- **SHAP TreeExplainer** — per-county feature attribution stored as JSONB; surfaced as interactive waterfall charts in the dashboard
+- **Composite risk score** — weighted combination of model confidence, FEMA flood flag, and fire flag; used as gradient on the interactive map
 
 ### Retrieval-augmented generation
 - **pgvector** — FEMA report chunks + satellite tile embeddings (384-dim `all-MiniLM-L6-v2`, 512-dim CLIP)
@@ -112,8 +127,8 @@ ZimRadar fuses satellite imagery, NOAA weather records, FEMA disaster history, a
 - **LangSmith** — tracing for all LLM and retrieval calls
 
 ### Observability
-- **Prefect 3** — 6 deployments: `ingest-fema`, `ingest-fema-nri`, `ingest-noaa`, `ingest-noaa-counties`, `ingest-sentinel2`, `train-xgboost-classifier`
-- **Streamlit** — live interactive Folium map with county-level risk tier overlays, sidebar county picker
+- **Prefect 3** — 10 deployments: `ingest-fema`, `ingest-fema-nri`, `ingest-noaa`, `ingest-noaa-counties`, `ingest-sentinel2`, `ingest-elevation`, `ingest-osm-counties`, `ingest-noaa-storm-events`, `seed-state-regions`, `train-xgboost-classifier`
+- **Streamlit** — live Folium map with composite-score gradient (yellow→orange→red), SHAP waterfall charts per county, feature importance, risk distribution donut
 
 ---
 
@@ -273,5 +288,6 @@ tests/
 - [x] Phase 1 — Sentinel-2 ingestion, segmentation, pgvector, Streamlit MVP
 - [x] Phase 2 — ZoeDepth, Chronos forecasting, XGBoost classifier (AUC 0.92), RAG retriever
 - [x] Phase 2.5 — FEMA NRI integration, bulk NOAA county coverage, LangSmith tracing
-- [ ] Phase 3 — LangGraph agent orchestration, LLM narrative reports, Validator Agent
-- [ ] Phase 4 — FastAPI async `/assess`, PDF export, public demo
+- [x] Phase 2.6 — OSM infrastructure age, USGS elevation, 14-feature classifier (AUC 0.9182), SHAP explainability, NOAA Storm Events + Census population, composite-score gradient map
+- [ ] Phase 3 — LangGraph agent orchestration, LLM narrative reports per county, Validator Agent
+- [ ] Phase 4 — Expand to TX / NY / GA for tier diversity, drift detection, automated retraining trigger, FastAPI `/assess` endpoint, public demo
