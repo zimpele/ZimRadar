@@ -55,11 +55,13 @@ async def bulk_ingest_sentinel2_flow(
     state_codes: list[str] = ["CA", "FL"],
     date_from: str | None = None,
     date_to: str | None = None,
+    skip_existing: bool = True,
 ) -> int:
     """Ingest Sentinel-2 tiles for all county regions in the given US states.
 
     Run seed_state_regions first to populate the regions table.
     Defaults to the last 90 days of imagery.
+    Set skip_existing=False to re-ingest all counties.
     """
     from src.ingestion.sentinel2 import ingest_sentinel2_flow
 
@@ -68,17 +70,36 @@ async def bulk_ingest_sentinel2_flow(
     if not date_from:
         date_from = (date.today() - timedelta(days=90)).isoformat()
 
-    logger.info("Bulk Sentinel-2 for %s: %s → %s", state_codes, date_from, date_to)
+    logger.info(
+        "Bulk Sentinel-2 for %s: %s → %s (skip_existing=%s)",
+        state_codes,
+        date_from,
+        date_to,
+        skip_existing,
+    )
 
     async with get_async_session() as session:
-        rows = await session.execute(
-            text("""
-                SELECT id, name FROM regions
-                WHERE state_code = ANY(:states) AND county_fips IS NOT NULL
-                ORDER BY id
-            """),
-            {"states": state_codes},
-        )
+        if skip_existing:
+            rows = await session.execute(
+                text("""
+                    SELECT r.id, r.name FROM regions r
+                    WHERE r.state_code = ANY(:states) AND r.county_fips IS NOT NULL
+                      AND NOT EXISTS (
+                          SELECT 1 FROM sentinel2_tiles t WHERE t.region_id = r.id
+                      )
+                    ORDER BY r.id
+                """),
+                {"states": state_codes},
+            )
+        else:
+            rows = await session.execute(
+                text("""
+                    SELECT id, name FROM regions
+                    WHERE state_code = ANY(:states) AND county_fips IS NOT NULL
+                    ORDER BY id
+                """),
+                {"states": state_codes},
+            )
         regions = rows.fetchall()
 
     if not regions:
