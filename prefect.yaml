@@ -50,3 +50,21 @@ deployments:
     description: "Bulk NOAA station lookup + 2yr precipitation trend for all FEMA counties"
     tags:
       - ingestion
+
+  - name: seed-state-regions
+    entrypoint: src/ingestion/state_regions.py:seed_state_regions_flow
+    work_pool:
+      name: default-agent-pool
+    description: "Create region entries for all counties in given US states (default: CA, FL)"
+    tags:
+      - ingestion
+      - setup
+
+  - name: bulk-ingest-sentinel2-states
+    entrypoint: src/ingestion/state_regions.py:bulk_ingest_sentinel2_flow
+    work_pool:
+      name: default-agent-pool
+    description: "Bulk Sentinel-2 ingestion for all county regions in given US states"
+    tags:
+      - ingestion
+      - satellite
