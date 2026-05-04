@@ -1,7 +1,8 @@
-"""Prefect flow: OSM building start_date → median infrastructure age per county."""
+"""Prefect flow: OSM buildings → infrastructure age / development score per county."""
 
 import asyncio
 import logging
+import math
 import re
 from datetime import date
 from statistics import median
@@ -19,17 +20,18 @@ OVERPASS_URL = "https://overpass-api.de/api/interpreter"
 CONCURRENCY = 2
 CURRENT_YEAR = date.today().year
 MIN_YEAR = 1800
+# OSM tags that may hold a construction year, tried in order
+AGE_TAGS = ("start_date", "year_of_construction", "construction_date", "building:year", "built")
 
 
 def _parse_year(s: str) -> int | None:
-    """Extract a four-digit construction year from an OSM start_date string.
+    """Extract a four-digit construction year from an OSM tag value.
 
     Handles: "1920", "1920-01-01", "ca. 1920", "~1950", "circa 1900".
-    Returns None for unparseable or out-of-range values (e.g. "19th century").
+    Returns None for unparseable or out-of-range values.
     """
     if not s:
         return None
-    # Find first 4-digit sequence that looks like a year
     match = re.search(r"\b(1[0-9]{3}|20[0-2][0-9])\b", s)
     if not match:
         return None
@@ -39,12 +41,23 @@ def _parse_year(s: str) -> int | None:
     return year
 
 
+def _development_score(building_count: int) -> float:
+    """Map building count to a pseudo-age proxy in the 0-50 range.
+
+    Used when no explicit construction year tags are present (the common case
+    for US OSM data).  More buildings → more developed area → higher score.
+    log1p keeps small counts meaningful without letting dense urban areas
+    dominate.  Calibrated so ~1000 buildings ≈ 50 (saturates at city scale).
+    """
+    return min(50.0, math.log1p(building_count) * 7.2)
+
+
 async def _fetch_buildings(
     bbox: dict,
     client: httpx.AsyncClient,
     sem: asyncio.Semaphore,
 ) -> list[dict]:
-    """Fetch building elements with start_date tags from Overpass."""
+    """Fetch all building elements from Overpass for a county bbox."""
     min_lat = float(bbox["min_lat"])
     max_lat = float(bbox["max_lat"])
     min_lon = float(bbox["min_lon"])
@@ -52,9 +65,9 @@ async def _fetch_buildings(
     overpass_bbox = f"{min_lat},{min_lon},{max_lat},{max_lon}"
 
     query = (
-        f"[out:json][timeout:60];"
-        f'(way["building"]["start_date"]({overpass_bbox});'
-        f'relation["building"]["start_date"]({overpass_bbox}););'
+        f"[out:json][timeout:90];"
+        f'(way["building"]({overpass_bbox});'
+        f'relation["building"]({overpass_bbox}););'
         f"out tags;"
     )
 
@@ -63,11 +76,10 @@ async def _fetch_buildings(
             resp = await client.post(
                 OVERPASS_URL,
                 data={"data": query},
-                timeout=90.0,
+                timeout=120.0,
             )
             resp.raise_for_status()
-            data = resp.json()
-            return data.get("elements", [])
+            return resp.json().get("elements", [])
         except Exception as exc:
             logger.debug("Overpass fetch failed: %s", exc)
             return []
@@ -79,25 +91,30 @@ async def _process_county(
     client: httpx.AsyncClient,
     sem: asyncio.Semaphore,
 ) -> dict | None:
-    """Return infrastructure summary dict or None if no usable data."""
+    """Return infrastructure summary dict, or None on total fetch failure."""
     elements = await _fetch_buildings(bbox, client, sem)
+    if not elements:
+        return None
+
     years = []
     for el in elements:
         tags = el.get("tags", {})
-        raw = tags.get("start_date", "")
-        year = _parse_year(raw)
-        if year is not None:
-            years.append(year)
+        for tag in AGE_TAGS:
+            year = _parse_year(tags.get(tag, ""))
+            if year is not None:
+                years.append(year)
+                break  # first matching tag wins per element
 
-    if not years:
-        return None
+    if years:
+        age = float(CURRENT_YEAR - int(median(years)))
+    else:
+        # No explicit age data — use building count as development proxy
+        age = _development_score(len(elements))
 
-    median_year = int(median(years))
-    age = CURRENT_YEAR - median_year
     return {
         "county_fips": county_fips,
-        "median_building_age_yr": float(age),
-        "building_count": len(years),
+        "median_building_age_yr": age,
+        "building_count": len(elements),
     }
 
 
