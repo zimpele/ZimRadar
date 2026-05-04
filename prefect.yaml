@@ -101,3 +101,12 @@ deployments:
     tags:
       - agents
       - reports
+
+  - name: segment-tiles
+    entrypoint: src/pipeline/segment_flow.py:segment_tiles_flow
+    work_pool:
+      name: default-agent-pool
+    description: "Batch SegFormer segmentation for all unprocessed tiles (default: CA + FL)"
+    tags:
+      - ml
+      - segmentation
