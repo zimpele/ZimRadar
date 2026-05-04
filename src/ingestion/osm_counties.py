@@ -162,44 +162,50 @@ async def build_county_infrastructure(skip_existing: bool = True) -> int:
         return 0
 
     sem = asyncio.Semaphore(CONCURRENCY)
-    records = []
-    errors = 0
+    total_upserted = 0
+    total_errors = 0
+    BATCH_SIZE = 30
+    upsert_sql = text("""
+        INSERT INTO county_infrastructure_summary
+            (county_fips, median_building_age_yr, building_count, updated_at)
+        VALUES
+            (:county_fips, :median_building_age_yr, :building_count, now())
+        ON CONFLICT (county_fips) DO UPDATE SET
+            median_building_age_yr = EXCLUDED.median_building_age_yr,
+            building_count         = EXCLUDED.building_count,
+            updated_at             = now()
+    """)
 
     async with httpx.AsyncClient(headers={"User-Agent": "ZimRadar/1.0"}) as client:
-        tasks = [_process_county(row.county_fips, row.bbox, client, sem) for row in county_rows]
-        results = await asyncio.gather(*tasks)
+        for batch_start in range(0, len(county_rows), BATCH_SIZE):
+            batch = county_rows[batch_start : batch_start + BATCH_SIZE]
+            tasks = [_process_county(row.county_fips, row.bbox, client, sem) for row in batch]
+            results = await asyncio.gather(*tasks)
 
-    for result in results:
-        if result is None:
-            errors += 1
-        else:
-            records.append(result)
+            records = [r for r in results if r is not None]
+            total_errors += sum(1 for r in results if r is None)
+
+            if records:
+                async with get_async_session() as session:
+                    for rec in records:
+                        await session.execute(upsert_sql, rec)
+
+                total_upserted += len(records)
+                log.info(
+                    "Batch %d-%d: upserted %d, running total %d",
+                    batch_start,
+                    batch_start + len(batch) - 1,
+                    len(records),
+                    total_upserted,
+                )
 
     log.info(
         "Infrastructure data: %d fetched, %d no usable buildings out of %d",
-        len(records),
-        errors,
+        total_upserted,
+        total_errors,
         len(county_rows),
     )
-
-    async with get_async_session() as session:
-        for rec in records:
-            await session.execute(
-                text("""
-                INSERT INTO county_infrastructure_summary
-                    (county_fips, median_building_age_yr, building_count, updated_at)
-                VALUES
-                    (:county_fips, :median_building_age_yr, :building_count, now())
-                ON CONFLICT (county_fips) DO UPDATE SET
-                    median_building_age_yr = EXCLUDED.median_building_age_yr,
-                    building_count         = EXCLUDED.building_count,
-                    updated_at             = now()
-            """),
-                rec,
-            )
-
-    log.info("Upserted %d county infrastructure summaries", len(records))
-    return len(records)
+    return total_upserted
 
 
 @flow(name="ingest_osm_counties_flow", log_prints=True)
