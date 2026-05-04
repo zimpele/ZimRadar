@@ -18,11 +18,12 @@ logger = logging.getLogger(__name__)
 
 CENSUS_URL = (
     "https://api.census.gov/data/2022/acs/acs5"
-    "?get=B01003_001E,NAME&for=county:*&in=state:06,12"
+    "?get=B01003_001E,NAME&for=county:*&in=state:06,08,12,19,37"
 )
 NOAA_INDEX_URL = "https://www.ncei.noaa.gov/pub/data/swdi/stormevents/csvfiles/"
 YEARS = list(range(2020, 2025))
-TARGET_STATE_FIPS = {"06", "12"}
+# CA=06, CO=08, FL=12, IA=19, NC=37
+TARGET_STATE_FIPS = {"06", "08", "12", "19", "37"}
 
 
 def _parse_damage(val: str) -> float:
