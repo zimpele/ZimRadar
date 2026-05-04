@@ -35,6 +35,25 @@ TIER_COLOR_MAP = {
     "moderate": "#fee08b",
     "low": "#91cf60",
 }
+
+
+def _score_to_color(score: float | None, min_score: float = 0.0, max_score: float = 1.0) -> str:
+    """Map a composite_score to a yellow→orange→red hex color gradient."""
+    if score is None:
+        return "#aaaaaa"
+    t = max(0.0, min(1.0, (score - min_score) / max(max_score - min_score, 1e-6)))
+    # yellow (#fee08b) → orange (#fc8d59) → red (#d73027)
+    if t < 0.5:
+        s = t * 2
+        r = int(254 + (252 - 254) * s)
+        g = int(224 + (141 - 224) * s)
+        b = int(139 + (89 - 139) * s)
+    else:
+        s = (t - 0.5) * 2
+        r = int(252 + (215 - 252) * s)
+        g = int(141 + (48 - 141) * s)
+        b = int(89 + (39 - 89) * s)
+    return f"#{r:02x}{g:02x}{b:02x}"
 FEATURE_LABELS = {
     "flood_events_5yr": "Flood Events (5yr)",
     "avg_precipitation_trend": "Precipitation Trend",
@@ -302,17 +321,23 @@ with tab_map:
                     tooltip=folium.GeoJsonTooltip(fields=["name"], aliases=["State:"]),
                 ).add_to(m)
 
+            # Compute score range for gradient normalization
+            all_scores = [r.get("composite_score") for r in regions if r.get("composite_score") is not None]
+            score_min = min(all_scores) if all_scores else 0.0
+            score_max = max(all_scores) if all_scores else 1.0
+
             us_bounds = []
             for region in regions:
                 tier = region.get("risk_tier", "unknown")
-                color = TIER_COLOR_MAP.get(tier, "#aaaaaa")
                 score = region.get("composite_score")
                 conf = region.get("confidence")
+                # Use gradient when scores available, fall back to tier color
+                color = _score_to_color(score, score_min, score_max) if score is not None else TIER_COLOR_MAP.get(tier, "#aaaaaa")
                 label = region["name"]
                 if tier and tier != "unknown":
                     label += f" — {tier.upper()}"
                 if score is not None:
-                    label += f" (score: {score:.2f}"
+                    label += f" (score: {score:.3f}"
                     if conf is not None:
                         label += f", {conf:.0%} conf"
                     label += ")"
