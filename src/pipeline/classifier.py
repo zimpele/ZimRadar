@@ -154,26 +154,37 @@ def _composite_score(tier: str, confidence: float, flood_flag: bool, fire_flag: 
 
 async def build_features_for_region(region_id: int) -> dict[str, float]:
     async with get_async_session() as session:
-        state_result = await session.execute(
-            text("SELECT state_code FROM regions WHERE id = :rid"), {"rid": region_id}
+        meta_result = await session.execute(
+            text("SELECT state_code, county_fips FROM regions WHERE id = :rid"),
+            {"rid": region_id},
         )
-        state_row = state_result.fetchone()
-        state_code = state_row[0] if state_row else None
+        meta_row = meta_result.fetchone()
+        state_code = meta_row[0] if meta_row else None
+        county_fips_early = meta_row[1] if meta_row else None
 
         if state_code and not state_code.startswith("DE-"):
-            flood_result = await session.execute(
-                text("""
-                    SELECT COUNT(*) FROM fema_declarations
-                    WHERE disaster_type IN ('Flood','Hurricane','Severe Storm','Tropical Storm')
-                    AND state = :state
-                    AND declaration_date >= NOW() - INTERVAL '5 years'
-                """),
-                {"state": state_code},
-            )
+            if county_fips_early:
+                flood_result = await session.execute(
+                    text("""
+                        SELECT COUNT(*) FROM fema_declarations
+                        WHERE disaster_type IN ('Flood','Hurricane','Severe Storm','Tropical Storm')
+                        AND county_fips = :fips
+                        AND declaration_date >= NOW() - INTERVAL '5 years'
+                    """),
+                    {"fips": county_fips_early},
+                )
+            else:
+                flood_result = await session.execute(
+                    text("""
+                        SELECT COUNT(*) FROM fema_declarations
+                        WHERE disaster_type IN ('Flood','Hurricane','Severe Storm','Tropical Storm')
+                        AND state = :state
+                        AND declaration_date >= NOW() - INTERVAL '5 years'
+                    """),
+                    {"state": state_code},
+                )
         else:
-            flood_result = await session.execute(
-                text("SELECT 0"),
-            )
+            flood_result = await session.execute(text("SELECT 0"))
         flood_events = int(flood_result.scalar() or 0)
 
         precip_result = await session.execute(
@@ -186,11 +197,22 @@ async def build_features_for_region(region_id: int) -> dict[str, float]:
         )
         precip_rows = precip_result.fetchall()
 
+        # Fall back to county_climate_summary when no station observations exist
+        precip_trend_fallback = 0.0
+        if not precip_rows and county_fips_early:
+            climate_result = await session.execute(
+                text("SELECT precip_trend FROM county_climate_summary WHERE county_fips = :fips"),
+                {"fips": county_fips_early},
+            )
+            climate_row = climate_result.fetchone()
+            if climate_row and climate_row.precip_trend is not None:
+                precip_trend_fallback = float(climate_row.precip_trend)
+
     precip_values = [float(r.precipitation_mm or 0.0) for r in precip_rows]
     precip_trend = (
         float(np.polyfit(range(len(precip_values)), precip_values, 1)[0])
         if len(precip_values) >= 2
-        else 0.0
+        else precip_trend_fallback
     )
 
     async with get_async_session() as session:
