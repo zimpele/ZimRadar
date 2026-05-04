@@ -52,37 +52,15 @@ def _development_score(building_count: int) -> float:
     return min(50.0, math.log1p(building_count) * 7.2)
 
 
-async def _fetch_buildings(
-    bbox: dict,
-    client: httpx.AsyncClient,
-    sem: asyncio.Semaphore,
-) -> list[dict]:
-    """Fetch all building elements from Overpass for a county bbox."""
-    min_lat = float(bbox["min_lat"])
-    max_lat = float(bbox["max_lat"])
-    min_lon = float(bbox["min_lon"])
-    max_lon = float(bbox["max_lon"])
-    overpass_bbox = f"{min_lat},{min_lon},{max_lat},{max_lon}"
-
-    query = (
-        f"[out:json][timeout:90];"
-        f'(way["building"]({overpass_bbox});'
-        f'relation["building"]({overpass_bbox}););'
-        f"out tags;"
-    )
-
+async def _overpass_post(query: str, client: httpx.AsyncClient, sem: asyncio.Semaphore) -> dict:
     async with sem:
         try:
-            resp = await client.post(
-                OVERPASS_URL,
-                data={"data": query},
-                timeout=120.0,
-            )
+            resp = await client.post(OVERPASS_URL, data={"data": query}, timeout=60.0)
             resp.raise_for_status()
-            return resp.json().get("elements", [])
+            return resp.json()
         except Exception as exc:
-            logger.debug("Overpass fetch failed: %s", exc)
-            return []
+            logger.warning("Overpass request failed: %s", exc)
+            return {}
 
 
 async def _process_county(
@@ -91,30 +69,53 @@ async def _process_county(
     client: httpx.AsyncClient,
     sem: asyncio.Semaphore,
 ) -> dict | None:
-    """Return infrastructure summary dict, or None on total fetch failure."""
-    elements = await _fetch_buildings(bbox, client, sem)
+    """Return infrastructure summary dict, or None on total fetch failure.
+
+    Strategy:
+    1. Fast count query → total building count (always available).
+    2. Small age-tag query → buildings with explicit construction year (rare in US).
+    If age tags exist: store median age (years).
+    Otherwise: store building-count-derived development score as proxy.
+    """
+    min_lat = float(bbox["min_lat"])
+    max_lat = float(bbox["max_lat"])
+    min_lon = float(bbox["min_lon"])
+    max_lon = float(bbox["max_lon"])
+    ob = f"{min_lat},{min_lon},{max_lat},{max_lon}"
+
+    # 1. Count all buildings (fast — no element download)
+    count_q = f'[out:json][timeout:30];(way["building"]({ob});relation["building"]({ob}););out count;'
+    count_data = await _overpass_post(count_q, client, sem)
+    elements = count_data.get("elements", [])
     if not elements:
         return None
+    building_count = int(elements[0].get("tags", {}).get("total", 0))
 
+    # 2. Query buildings with any known age tag (tiny result set)
+    age_union = "".join(
+        f'way["building"]["{t}"]({ob});relation["building"]["{t}"]({ob});'
+        for t in AGE_TAGS
+    )
+    age_q = f"[out:json][timeout:30];({age_union});out tags;"
+    age_data = await _overpass_post(age_q, client, sem)
     years = []
-    for el in elements:
+    for el in age_data.get("elements", []):
         tags = el.get("tags", {})
         for tag in AGE_TAGS:
             year = _parse_year(tags.get(tag, ""))
             if year is not None:
                 years.append(year)
-                break  # first matching tag wins per element
+                break
 
     if years:
         age = float(CURRENT_YEAR - int(median(years)))
     else:
-        # No explicit age data — use building count as development proxy
-        age = _development_score(len(elements))
+        age = _development_score(building_count)
 
     return {
         "county_fips": county_fips,
         "median_building_age_yr": age,
-        "building_count": len(elements),
+        "building_count": building_count,
     }
 
 
@@ -151,7 +152,7 @@ async def build_county_infrastructure(skip_existing: bool = True) -> int:
     records = []
     errors = 0
 
-    async with httpx.AsyncClient() as client:
+    async with httpx.AsyncClient(headers={"User-Agent": "ZimRadar/1.0"}) as client:
         tasks = [_process_county(row.county_fips, row.bbox, client, sem) for row in county_rows]
         results = await asyncio.gather(*tasks)
 

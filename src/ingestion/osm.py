@@ -24,7 +24,7 @@ def bbox_to_overpass_query(bbox: dict) -> str:
 
 async def fetch_osm_buildings(bbox: dict) -> dict:
     query = bbox_to_overpass_query(bbox)
-    async with httpx.AsyncClient(timeout=90.0) as client:
+    async with httpx.AsyncClient(timeout=90.0, headers={"User-Agent": "ZimRadar/1.0"}) as client:
         response = await client.post(OVERPASS_URL, data={"data": query})
         await response.raise_for_status()
         return await response.json()
