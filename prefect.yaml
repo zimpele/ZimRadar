@@ -110,3 +110,12 @@ deployments:
     tags:
       - ml
       - segmentation
+
+  - name: classify-regions
+    entrypoint: src/pipeline/classify_flow.py:classify_regions_flow
+    work_pool:
+      name: default-agent-pool
+    description: "Batch classify all active regions and store risk assessments (concurrency=2)"
+    tags:
+      - ml
+      - classification
