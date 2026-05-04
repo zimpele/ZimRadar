@@ -267,7 +267,9 @@ st.divider()
 
 # ── Tabs ──────────────────────────────────────────────────────────────────────
 
-tab_map, tab_insights = st.tabs(["🗺️ Map & County Analysis", "📊 Model Insights"])
+tab_map, tab_insights, tab_arch = st.tabs(
+    ["🗺️ Map & County Analysis", "📊 Model Insights", "📐 Architecture"]
+)
 
 regions = asyncio.run(get_regions())
 
@@ -501,3 +503,73 @@ with tab_insights:
                 ]
             )
             st.dataframe(df, use_container_width=True, hide_index=True)
+
+# ── Tab 3: Architecture ───────────────────────────────────────────────────────
+
+with tab_arch:
+    from src.dashboard.codebase_graph import build_graph_data, build_plotly_figure
+
+    st.subheader("Interactive Architecture Diagram")
+    st.caption(
+        "Each node is a module. **Hover** to see all functions and their descriptions. "
+        "Node size scales with the number of functions."
+    )
+
+    use_llm = st.toggle(
+        "🤖 Enhance undocumented functions with Gemma2",
+        value=False,
+        help="Calls the local Gemma2:9b model to generate plain-English descriptions for "
+        "functions that have no docstring. First run takes ~2 min; results are cached.",
+    )
+
+    @st.cache_data(ttl=300, show_spinner=False)
+    def _cached_graph(llm: bool) -> dict:
+        return build_graph_data(use_llm=llm)
+
+    with st.spinner("Parsing codebase…"):
+        graph_data = _cached_graph(use_llm)
+
+    n_modules = len(graph_data["nodes"])
+    n_funcs = sum(len(n["functions"]) for n in graph_data["nodes"])
+    n_edges = len(graph_data["edges"])
+
+    c1, c2, c3, c4 = st.columns(4)
+    c1.metric("Modules", n_modules)
+    c2.metric("Functions / Classes", n_funcs)
+    c3.metric("Import edges", n_edges)
+    c4.metric(
+        "LLM descriptions",
+        graph_data.get("llm_calls", 0),
+        help="Number of Gemma2 calls made this run (0 if all cached)",
+    )
+
+    st.plotly_chart(build_plotly_figure(graph_data), use_container_width=True)
+
+    # Searchable function index below the graph
+    with st.expander("🔍 Search all functions"):
+        query = st.text_input(
+            "Function or module name", placeholder="e.g. classify, fema, sentinel"
+        )
+        rows = []
+        for node in graph_data["nodes"]:
+            for fn in node["functions"]:
+                if (
+                    not query
+                    or query.lower() in fn["name"].lower()
+                    or query.lower() in node["label"].lower()
+                ):
+                    rows.append(
+                        {
+                            "Module": node["label"],
+                            "Layer": node["layer_label"],
+                            "Function": fn["name"],
+                            "Type": fn["kind"],
+                            "Description": fn["description"],
+                        }
+                    )
+        if rows:
+            import pandas as pd
+
+            st.dataframe(pd.DataFrame(rows), use_container_width=True, hide_index=True)
+        else:
+            st.info("No matches found.")
