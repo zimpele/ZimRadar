@@ -119,12 +119,26 @@ def load_classifier_from_s3() -> xgb.XGBClassifier:
         os.unlink(temp_path)
 
 
-def classify_region_features(features: dict[str, float]) -> tuple[str, float]:
+def classify_region_features(features: dict[str, float]) -> tuple[str, float, dict[str, float]]:
+    import shap
+
     model = load_classifier_from_s3()
     X = np.array([[features[k] for k in FEATURE_NAMES]])
     proba = model.predict_proba(X)[0]
     tier_idx = int(np.argmax(proba))
-    return RISK_TIERS[tier_idx], float(proba[tier_idx])
+
+    explainer = shap.TreeExplainer(model)
+    shap_vals = explainer.shap_values(X)
+    # Multi-class XGBoost: list of (n_samples, n_features) arrays, one per class
+    if isinstance(shap_vals, list):
+        raw = shap_vals[tier_idx][0]
+    elif shap_vals.ndim == 3:
+        raw = shap_vals[0, :, tier_idx]
+    else:
+        raw = shap_vals[0]
+    shap_dict = {name: float(v) for name, v in zip(FEATURE_NAMES, raw)}
+
+    return RISK_TIERS[tier_idx], float(proba[tier_idx]), shap_dict
 
 
 def _composite_score(tier: str, confidence: float, flood_flag: bool, fire_flag: bool) -> float:
@@ -297,8 +311,10 @@ async def build_features_for_region(region_id: int) -> dict[str, float]:
 
 
 async def run_classification_for_region(region_id: int) -> None:
+    import json
+
     features = await build_features_for_region(region_id)
-    tier, confidence = await asyncio.to_thread(classify_region_features, features)
+    tier, confidence, shap_dict = await asyncio.to_thread(classify_region_features, features)
 
     async with get_async_session() as session:
         forecast_result = await session.execute(
@@ -318,9 +334,11 @@ async def run_classification_for_region(region_id: int) -> None:
         await session.execute(
             text("""
                 INSERT INTO risk_assessments
-                    (region_id, risk_tier, confidence, composite_score, assessed_at)
+                    (region_id, risk_tier, confidence, composite_score, assessed_at,
+                     features_json, shap_values)
                 VALUES
-                    (:region_id, :risk_tier, :confidence, :composite_score, :assessed_at)
+                    (:region_id, :risk_tier, :confidence, :composite_score, :assessed_at,
+                     CAST(:features_json AS jsonb), CAST(:shap_values AS jsonb))
             """),
             {
                 "region_id": region_id,
@@ -328,5 +346,7 @@ async def run_classification_for_region(region_id: int) -> None:
                 "confidence": confidence,
                 "composite_score": composite,
                 "assessed_at": datetime.now(timezone.utc),
+                "features_json": json.dumps(features),
+                "shap_values": json.dumps(shap_dict),
             },
         )

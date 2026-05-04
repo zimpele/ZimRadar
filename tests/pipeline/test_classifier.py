@@ -33,10 +33,11 @@ def test_classify_region_features_returns_valid_tier():
 
     with patch("src.pipeline.classifier.load_classifier_from_s3", return_value=model):
         features = {name: 0.5 for name in FEATURE_NAMES}
-        tier, confidence = classify_region_features(features)
+        tier, confidence, shap_dict = classify_region_features(features)
 
     assert tier in RISK_TIERS
     assert 0.0 <= confidence <= 1.0
+    assert set(shap_dict.keys()) == set(FEATURE_NAMES)
 
 
 @pytest.mark.asyncio
@@ -68,7 +69,9 @@ async def test_run_classification_for_region_writes_risk_assessment():
 
     with (
         patch("src.pipeline.classifier.build_features_for_region", return_value=mock_features),
-        patch("src.pipeline.classifier.classify_region_features", return_value=("moderate", 0.7)),
+        patch(
+            "src.pipeline.classifier.classify_region_features", return_value=("moderate", 0.7, {})
+        ),
         patch("src.pipeline.classifier.get_async_session", return_value=mock_session),
     ):
         await run_classification_for_region(region_id=1)
