@@ -115,12 +115,32 @@ async def build_training_data() -> tuple[np.ndarray, np.ndarray]:
         )
         nri_by_fips = {row.county_fips: row for row in nri_rows.fetchall()}
 
+        elevation_rows = await session.execute(
+            text("""
+            SELECT county_fips, elevation_std_m
+            FROM county_elevation_summary
+            WHERE elevation_std_m IS NOT NULL
+        """)
+        )
+        elevation_by_fips = {row.county_fips: row for row in elevation_rows.fetchall()}
+
+        infra_rows = await session.execute(
+            text("""
+            SELECT county_fips, median_building_age_yr
+            FROM county_infrastructure_summary
+            WHERE median_building_age_yr IS NOT NULL
+        """)
+        )
+        infra_by_fips = {row.county_fips: row for row in infra_rows.fetchall()}
+
     log.info(
-        "Lookup tables: climate_summary=%d, NOAA_region=%d, seg=%d, NRI=%d",
+        "Lookup tables: climate_summary=%d, NOAA_region=%d, seg=%d, NRI=%d, elevation=%d, infra=%d",
         len(climate_by_fips),
         len(noaa_by_county),
         len(seg_by_county),
         len(nri_by_fips),
+        len(elevation_by_fips),
+        len(infra_by_fips),
     )
 
     X_rows, y_rows = [], []
@@ -134,6 +154,8 @@ async def build_training_data() -> tuple[np.ndarray, np.ndarray]:
         seg = seg_by_county.get((state, fips))
         nri = nri_by_fips.get(fips) if fips else None
         climate = climate_by_fips.get(fips) if fips else None
+        elev = elevation_by_fips.get(fips) if fips else None
+        infra = infra_by_fips.get(fips) if fips else None
 
         if climate:
             precip_trend = float(climate.precip_trend or 0.0)
@@ -143,6 +165,9 @@ async def build_training_data() -> tuple[np.ndarray, np.ndarray]:
             precip_trend = 0.0
         veg_loss = max(0.0, 0.3 - float(seg.avg_veg or 0.3)) if seg else 0.0
         urban = float(seg.avg_urban or 0.1) if seg else 0.1
+
+        elevation_variance = float(elev.elevation_std_m) if elev else 0.0
+        infrastructure_age_proxy = float(infra.median_building_age_yr) if infra else 0.5
 
         nri_risk = float(nri.risk_score or 0.0) if nri else 0.0
         nri_eal = float(nri.eal_score or 0.0) if nri else 0.0
@@ -157,8 +182,8 @@ async def build_training_data() -> tuple[np.ndarray, np.ndarray]:
                 precip_trend,
                 veg_loss,
                 urban,
-                0.0,  # elevation_variance — needs depth results
-                0.5,  # infrastructure_age_proxy — static until OSM extraction
+                elevation_variance,
+                infrastructure_age_proxy,
                 nri_risk,
                 nri_eal,
                 nri_sovi,

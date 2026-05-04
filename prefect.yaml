@@ -68,3 +68,19 @@ deployments:
     tags:
       - ingestion
       - satellite
+
+  - name: ingest-elevation
+    entrypoint: src/ingestion/elevation.py:ingest_elevation_flow
+    work_pool:
+      name: default-agent-pool
+    description: "Sample USGS SRTM elevation grid per county and compute std"
+    tags:
+      - ingestion
+
+  - name: ingest-osm-counties
+    entrypoint: src/ingestion/osm_counties.py:ingest_osm_counties_flow
+    work_pool:
+      name: default-agent-pool
+    description: "OSM building start_date → median infrastructure age per county"
+    tags:
+      - ingestion

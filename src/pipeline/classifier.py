@@ -216,11 +216,6 @@ async def build_features_for_region(region_id: int) -> dict[str, float]:
             fz = _json.loads(fz)
         if fz:
             flood_zone_feature_counts.append(len(fz.get("features", [])))
-    # High feature count = fragmented low-lying terrain = higher elevation variance proxy
-    elevation_variance = min(
-        100.0, float(np.mean(flood_zone_feature_counts)) if flood_zone_feature_counts else 0.0
-    )
-    infrastructure_age_proxy = 0.5  # static until OSM feature extraction is added in Phase 3
 
     async with get_async_session() as session:
         fips_result = await session.execute(
@@ -230,6 +225,8 @@ async def build_features_for_region(region_id: int) -> dict[str, float]:
         county_fips = fips_row[0] if fips_row else None
 
         nri_row = None
+        elev_row = None
+        infra_row = None
         if county_fips:
             nri_result = await session.execute(
                 text("""
@@ -240,6 +237,39 @@ async def build_features_for_region(region_id: int) -> dict[str, float]:
                 {"fips": county_fips},
             )
             nri_row = nri_result.fetchone()
+
+            elev_result = await session.execute(
+                text(
+                    "SELECT elevation_std_m FROM county_elevation_summary WHERE county_fips = :fips"
+                ),
+                {"fips": county_fips},
+            )
+            elev_row = elev_result.fetchone()
+
+            infra_result = await session.execute(
+                text(
+                    "SELECT median_building_age_yr FROM county_infrastructure_summary"
+                    " WHERE county_fips = :fips"
+                ),
+                {"fips": county_fips},
+            )
+            infra_row = infra_result.fetchone()
+
+    # elevation_variance: prefer DB elevation_std_m, fall back to flood-zone proxy
+    if elev_row and elev_row.elevation_std_m is not None:
+        elevation_variance = float(elev_row.elevation_std_m)
+    else:
+        elevation_variance = min(
+            100.0,
+            float(np.mean(flood_zone_feature_counts)) if flood_zone_feature_counts else 0.0,
+        )
+
+    # infrastructure_age_proxy: prefer DB median_building_age_yr, fall back to 0.5
+    infrastructure_age_proxy = (
+        float(infra_row.median_building_age_yr)
+        if infra_row and infra_row.median_building_age_yr is not None
+        else 0.5
+    )
 
     nri_risk_score = float(nri_row.risk_score or 0.0) if nri_row else 0.0
     nri_eal_score = float(nri_row.eal_score or 0.0) if nri_row else 0.0
