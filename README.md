@@ -21,7 +21,8 @@ ZimRadar fuses satellite imagery, NOAA weather records, FEMA disaster history, N
 | NOAA stations mapped | 1 571+ counties |
 | Storm Events (2020–2024) | 30 000+ county-level events (CA, CO, FL, IA, NC) |
 | Sentinel-2 tiles ingested | 1 000+ across 388 regions (5 states) |
-| Counties with SHAP scores | 125 (CA + FL, retraining in progress for 5-state coverage) |
+| Classified regions | 388 (CA, CO, FL, IA, NC) |
+| AI risk briefings generated | 45+ validated county reports |
 | Risk tiers | low / moderate / high / critical |
 
 ---
@@ -128,11 +129,11 @@ ZimRadar fuses satellite imagery, NOAA weather records, FEMA disaster history, N
 
 ### AI report generation (Phase 3)
 - **LangGraph ReAct agent** — autonomously selects evidence tools based on top SHAP features (FEMA flood history, NOAA storm events, NRI comparison, climate trend, infrastructure); deterministic validator with repair loop (max 2 retries); stores structured JSON briefings to `county_reports`
-- **Gemma2:9b via Ollama** — generates 3-paragraph county risk briefings grounded in SHAP values; runs fully on-server, no data leaves the VPS
+- **Pluggable LLM backend** — NVIDIA NIM (`meta/llama-3.3-70b-instruct`, 20 RPM free tier), OpenRouter free models, or local Ollama; switch via `LLM_PROVIDER` env var; auto-detects best available provider
 - **Structured output schema** — `top_drivers`, `supporting_evidence`, `uncertainty_notes`, `briefing_md`, `citations`; deterministic validation checks all numeric claims against source fields
 
 ### Observability
-- **Prefect 3** — 12 deployments: `ingest-fema`, `ingest-fema-nri`, `ingest-noaa`, `ingest-noaa-counties`, `ingest-sentinel2`, `ingest-elevation`, `ingest-osm-counties`, `ingest-noaa-storm-events`, `seed-state-regions`, `bulk-ingest-sentinel2-states`, `train-xgboost-classifier`, `generate-county-reports`
+- **Prefect 3** — 14 deployments: `ingest-fema`, `ingest-fema-nri`, `ingest-noaa`, `ingest-noaa-counties`, `ingest-sentinel2`, `ingest-elevation`, `ingest-osm-counties`, `ingest-noaa-storm-events`, `seed-state-regions`, `bulk-ingest-sentinel2-states`, `train-xgboost-classifier`, `generate-county-reports`, `segment-tiles`, `classify-regions`
 - **Streamlit** — live Folium map with composite-score gradient (yellow→orange→red), SHAP waterfall charts per county, AI Risk Briefing panel, feature importance, risk distribution donut
 
 ---
@@ -151,6 +152,7 @@ ZimRadar fuses satellite imagery, NOAA weather records, FEMA disaster history, N
 | Vector DB | PostgreSQL 16 + pgvector |
 | Cache | Redis 7 |
 | Pipeline | Prefect 3 |
+| LLM (reports) | NVIDIA NIM · OpenRouter · Ollama (pluggable via `LLM_PROVIDER`) |
 | Tracing | LangSmith |
 | Storage | S3-compatible (AWS / MinIO) |
 | Dashboard | Streamlit + Folium |
@@ -189,6 +191,7 @@ S3_BUCKET_TILES=zimradar-tiles
 S3_BUCKET_PDFS=zimradar-pdfs
 NOAA_API_KEY=...
 OPENROUTER_API_KEY=...      # LLM calls via OpenRouter
+NVIDIA_API_KEY=...         # NVIDIA NIM (20 RPM free tier — preferred)
 LANGSMITH_API_KEY=...       # optional — enables LangSmith tracing
 ```
 
@@ -294,5 +297,5 @@ tests/
 - [x] Phase 2 — ZoeDepth, Chronos forecasting, XGBoost classifier (AUC 0.92), RAG retriever
 - [x] Phase 2.5 — FEMA NRI integration, bulk NOAA county coverage, LangSmith tracing
 - [x] Phase 2.6 — OSM infrastructure age, USGS elevation, 14-feature classifier (AUC 0.9182), SHAP explainability, NOAA Storm Events + Census population, composite-score gradient map
-- [x] Phase 3 — LangGraph ReAct agent; SHAP-driven tool selection; Gemma2 structured briefings; deterministic validator + repair loop; `county_reports` table; batch Prefect flow; AI Risk Briefing panel in dashboard
+- [x] Phase 3 — LangGraph ReAct agent; SHAP-driven tool selection; pluggable LLM (NVIDIA NIM / OpenRouter / Ollama); deterministic validator + repair loop; `county_reports` table; 388-county batch flow; 45+ validated AI risk briefings
 - [ ] Phase 4 — Retrain classifier on 5-state data, drift detection, automated retraining trigger, FastAPI `/assess` endpoint, public demo

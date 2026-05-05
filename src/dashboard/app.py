@@ -446,7 +446,7 @@ with tab_map:
                 if st.button(
                     "📝 Generate AI Briefing",
                     type="primary",
-                    help=f"LangGraph agent → Gemma2 via Ollama ({_settings.ollama_model})",
+                    help=f"LangGraph agent → {_settings.active_model}",
                 ):
                     from src.agents.report_agent import generate_county_report
 
@@ -626,9 +626,9 @@ PIPELINE_STEPS = [
         "how": [
             "Composite-score gradient map (yellow → orange → red) for fine-grained visual differentiation",
             "SHAP waterfall chart per county — shows exactly which features drove the score",
-            "LangGraph ReAct agent selects evidence tools based on top SHAP features, then drafts a structured briefing validated against source data before saving",
+            "LangGraph ReAct agent selects evidence tools based on top SHAP features, drafts a structured briefing via NVIDIA NIM (Llama-3.3-70b), validated against SHAP data before saving",
         ],
-        "tech": "Streamlit · Folium · Plotly · LangGraph · Gemma 2 via Ollama",
+        "tech": "Streamlit · Folium · Plotly · LangGraph · NVIDIA NIM / OpenRouter / Ollama",
     },
 ]
 
