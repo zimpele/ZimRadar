@@ -50,11 +50,12 @@ async def _openrouter(prompt: str, system: str, settings) -> str:
 
 async def _ollama(prompt: str, system: str, settings) -> str:
     full_prompt = f"{system}\n\n{prompt}" if system else prompt
-    async with httpx.AsyncClient() as client:
+    async with httpx.AsyncClient(
+        timeout=httpx.Timeout(connect=10.0, read=600.0, write=30.0, pool=5.0)
+    ) as client:
         resp = await client.post(
             f"{settings.ollama_url}/api/generate",
             json={"model": settings.ollama_model, "prompt": full_prompt, "stream": False},
-            timeout=120.0,
         )
         resp.raise_for_status()
         return resp.json()["response"]

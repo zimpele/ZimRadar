@@ -6,10 +6,10 @@ import logging
 import re
 from typing import Literal, TypedDict
 
-import httpx
 from langgraph.graph import END, StateGraph
 from sqlalchemy import text
 
+from src.agents.llm import complete as llm_complete
 from src.agents.prompts import (
     NARRATIVE_SYSTEM,
     PROMPT_VERSION,
@@ -119,11 +119,7 @@ async def gather_evidence_node(state: ReportAgentState) -> dict:
 
 
 async def draft_narrative_node(state: ReportAgentState) -> dict:
-    """Call Gemma2 via Ollama to write structured JSON report."""
-    settings = get_settings()
-    ollama_url = f"{settings.ollama_url}/api/generate"
-    ollama_model = settings.ollama_model
-
+    """Call LLM (OpenRouter or Ollama) to write structured JSON report."""
     top_shap = sorted(state["shap_dict"].items(), key=lambda x: abs(x[1]), reverse=True)
 
     retry_note = ""
@@ -139,20 +135,11 @@ async def draft_narrative_node(state: ReportAgentState) -> dict:
         feature_labels=FEATURE_LABELS,
         retry_note=retry_note,
     )
-    full_prompt = f"{NARRATIVE_SYSTEM}\n\n{prompt}"
 
     try:
-        async with httpx.AsyncClient(
-            timeout=httpx.Timeout(connect=10.0, read=600.0, write=30.0, pool=5.0)
-        ) as client:
-            resp = await client.post(
-                ollama_url,
-                json={"model": ollama_model, "prompt": full_prompt, "stream": False},
-            )
-            resp.raise_for_status()
-            raw = resp.json().get("response", "").strip()
+        raw = await llm_complete(prompt, NARRATIVE_SYSTEM)
     except Exception as exc:
-        logger.error("Gemma2 call failed: %s", exc)
+        logger.error("LLM call failed: %s", exc)
         raw = (
             '{"top_drivers":[],"supporting_evidence":[],'
             '"uncertainty_notes":["LLM unavailable"],'
@@ -248,7 +235,7 @@ async def store_report_node(state: ReportAgentState) -> dict:
                 "citations": json.dumps(report.get("citations", [])),
                 "valid": not flagged,
                 "flagged": flagged,
-                "model_ver": get_settings().ollama_model,
+                "model_ver": get_settings().active_model,
                 "prompt_ver": PROMPT_VERSION,
             },
         )

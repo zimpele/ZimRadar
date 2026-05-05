@@ -35,6 +35,14 @@ class Settings(BaseSettings):
         w = [float(x) for x in self.risk_score_weights.split(",")]
         return w[0], w[1], w[2]
 
+    @property
+    def active_model(self) -> str:
+        """Return the model name that will actually be used for LLM calls."""
+        provider = self.llm_provider
+        if provider == "auto":
+            provider = "openrouter" if self.openrouter_api_key else "ollama"
+        return self.openrouter_model if provider == "openrouter" else self.ollama_model
+
 
 @lru_cache
 def get_settings() -> Settings:
