@@ -74,7 +74,8 @@ async def generate_county_reports_flow(
         if skip_existing:
             base_sql += (
                 " AND NOT EXISTS"
-                " (SELECT 1 FROM county_reports cr WHERE cr.region_id = ra.region_id)"
+                " (SELECT 1 FROM county_reports cr"
+                "  WHERE cr.region_id = ra.region_id AND cr.validation_pass = TRUE)"
             )
         base_sql += " ORDER BY ra.composite_score DESC"
 

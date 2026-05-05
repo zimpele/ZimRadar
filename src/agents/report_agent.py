@@ -146,7 +146,7 @@ async def draft_narrative_node(state: ReportAgentState) -> dict:
             m = re.search(r"\{.*\}", raw, re.DOTALL)
             raw = m.group(0) if m else raw
     except Exception as exc:
-        logger.error("LLM call failed: %s", exc)
+        logger.error("LLM call failed: %r", exc)
         raw = (
             '{"top_drivers":[],"supporting_evidence":[],'
             '"uncertainty_notes":["LLM unavailable"],'
