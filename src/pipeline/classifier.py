@@ -83,7 +83,7 @@ def _bootstrap_model() -> xgb.XGBClassifier:
             rng.uniform(0, 100, n),  # nri_flood_risks
             rng.uniform(0, 100, n),  # nri_fire_risks
             rng.uniform(0, 100, n),  # nri_heat_risks
-            rng.poisson(3, n),       # storm_events_5yr
+            rng.poisson(3, n),  # storm_events_5yr
             rng.uniform(0, 500, n),  # storm_damage_per_capita
         ]
     )

@@ -1,4 +1,5 @@
 """Prefect flow: batch SegFormer segmentation for all unprocessed tiles."""
+
 import logging
 
 from prefect import flow, task, get_run_logger

@@ -1,5 +1,6 @@
 # src/ingestion/noaa_storm_events.py
 """Prefect flow: ingest NOAA Storm Events CSVs into county_storm_summary."""
+
 import asyncio
 import csv
 import gzip
@@ -73,9 +74,7 @@ async def fetch_noaa_index() -> dict[int, str]:
         html = resp.text
 
     year_urls: dict[int, str] = {}
-    pattern = re.compile(
-        r'href="(StormEvents_details-ftp_v1\.0_d(\d{4})_[^"]+\.csv\.gz)"'
-    )
+    pattern = re.compile(r'href="(StormEvents_details-ftp_v1\.0_d(\d{4})_[^"]+\.csv\.gz)"')
     for match in pattern.finditer(html):
         filename, year_str = match.group(1), match.group(2)
         year = int(year_str)
@@ -107,9 +106,9 @@ async def download_and_parse_year(year: int, url: str) -> list[dict[str, str]]:
     return rows
 
 
-def _aggregate_rows(all_rows: list[dict[str, str]]) -> tuple[
-    dict[str, int], dict[str, int], dict[str, float]
-]:
+def _aggregate_rows(
+    all_rows: list[dict[str, str]],
+) -> tuple[dict[str, int], dict[str, int], dict[str, float]]:
     """Aggregate storm event counts and damage per county FIPS (CA + FL only)."""
     counts: dict[str, int] = defaultdict(int)
     flood_counts: dict[str, int] = defaultdict(int)
@@ -196,9 +195,7 @@ async def ingest_storm_events_flow() -> int:
     logger.info("Total rows across all years: %d", len(all_rows))
 
     counts, flood_counts, damage = await asyncio.to_thread(_aggregate_rows, all_rows)
-    logger.info(
-        "Aggregated %d unique counties (CA+FL only)", len(counts)
-    )
+    logger.info("Aggregated %d unique counties (CA+FL only)", len(counts))
 
     rows_written = await upsert_storm_summary(counts, flood_counts, damage, pop_dict)
     return rows_written

@@ -1,4 +1,5 @@
 """Database query tools for the county report agent."""
+
 from sqlalchemy import text
 from src.storage.db import get_async_session
 
@@ -139,9 +140,7 @@ async def fetch_infrastructure_summary(county_fips: str) -> dict:
         infra_row = infra.fetchone()
 
         elev = await session.execute(
-            text(
-                "SELECT elevation_std_m FROM county_elevation_summary WHERE county_fips = :fips"
-            ),
+            text("SELECT elevation_std_m FROM county_elevation_summary WHERE county_fips = :fips"),
             {"fips": county_fips},
         )
         elev_row = elev.fetchone()

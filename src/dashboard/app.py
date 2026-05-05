@@ -54,6 +54,8 @@ def _score_to_color(score: float | None, min_score: float = 0.0, max_score: floa
         g = int(141 + (48 - 141) * s)
         b = int(89 + (39 - 89) * s)
     return f"#{r:02x}{g:02x}{b:02x}"
+
+
 FEATURE_LABELS = {
     "flood_events_5yr": "Flood Events (5yr)",
     "avg_precipitation_trend": "Precipitation Trend",
@@ -325,7 +327,9 @@ with tab_map:
                 ).add_to(m)
 
             # Compute score range for gradient normalization
-            all_scores = [r.get("composite_score") for r in regions if r.get("composite_score") is not None]
+            all_scores = [
+                r.get("composite_score") for r in regions if r.get("composite_score") is not None
+            ]
             score_min = min(all_scores) if all_scores else 0.0
             score_max = max(all_scores) if all_scores else 1.0
 
@@ -335,7 +339,11 @@ with tab_map:
                 score = region.get("composite_score")
                 conf = region.get("confidence")
                 # Use gradient when scores available, fall back to tier color
-                color = _score_to_color(score, score_min, score_max) if score is not None else TIER_COLOR_MAP.get(tier, "#aaaaaa")
+                color = (
+                    _score_to_color(score, score_min, score_max)
+                    if score is not None
+                    else TIER_COLOR_MAP.get(tier, "#aaaaaa")
+                )
                 label = region["name"]
                 if tier and tier != "unknown":
                     label += f" — {tier.upper()}"
@@ -443,7 +451,11 @@ with tab_map:
                     from src.agents.report_agent import generate_county_report
 
                     _shap = json.loads(raw_shap) if isinstance(raw_shap, str) else (raw_shap or {})
-                    _feats = json.loads(raw_features) if isinstance(raw_features, str) else (raw_features or {})
+                    _feats = (
+                        json.loads(raw_features)
+                        if isinstance(raw_features, str)
+                        else (raw_features or {})
+                    )
                     with st.status("Generating AI risk briefing…", expanded=True) as _status:
                         try:
                             asyncio.run(
@@ -476,7 +488,9 @@ with tab_map:
                 if isinstance(top_drivers, str):
                     top_drivers = json.loads(top_drivers)
                 if top_drivers:
-                    st.markdown("**Key risk drivers:** " + " · ".join(f"`{d}`" for d in top_drivers))
+                    st.markdown(
+                        "**Key risk drivers:** " + " · ".join(f"`{d}`" for d in top_drivers)
+                    )
 
                 briefing = report.get("briefing_md") or ""
                 if briefing:
@@ -495,7 +509,9 @@ with tab_map:
                     f"Validation: {'✅ passed' if report.get('validation_pass') else '⚠ flagged'}"
                 )
             elif tier:
-                st.info("No briefing yet — click **Generate AI Briefing** above, or run the `generate-county-reports` Prefect flow for all counties.")
+                st.info(
+                    "No briefing yet — click **Generate AI Briefing** above, or run the `generate-county-reports` Prefect flow for all counties."
+                )
 
 # ── Tab 2: Model Insights ─────────────────────────────────────────────────────
 

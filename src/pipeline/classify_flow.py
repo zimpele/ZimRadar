@@ -1,4 +1,5 @@
 """Prefect flow: batch classify all active regions and store risk assessments."""
+
 import asyncio
 import logging
 

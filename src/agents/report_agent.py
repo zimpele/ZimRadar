@@ -179,7 +179,13 @@ def validate_node(state: ReportAgentState) -> dict:
             return {"validation_errors": ["Invalid JSON — no JSON object found"], "report": {}}
 
     # 2. Required fields
-    required = ["top_drivers", "supporting_evidence", "uncertainty_notes", "briefing_md", "citations"]
+    required = [
+        "top_drivers",
+        "supporting_evidence",
+        "uncertainty_notes",
+        "briefing_md",
+        "citations",
+    ]
     for field in required:
         if field not in data:
             errors.append(f"Missing required field: {field}")
@@ -200,10 +206,7 @@ def validate_node(state: ReportAgentState) -> dict:
 
     # 6. Top drivers reference actual SHAP features
     top_shap_features = {
-        k
-        for k, _ in sorted(
-            state["shap_dict"].items(), key=lambda x: abs(x[1]), reverse=True
-        )[:3]
+        k for k, _ in sorted(state["shap_dict"].items(), key=lambda x: abs(x[1]), reverse=True)[:3]
     }
     driver_text = " ".join(data.get("top_drivers", [])).lower()
     feature_words = {FEATURE_LABELS.get(f, f).lower().split()[0] for f in top_shap_features}
