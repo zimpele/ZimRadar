@@ -8,13 +8,51 @@ async def complete(prompt: str, system: str = "") -> str:
     provider = settings.llm_provider
 
     if provider == "auto":
-        provider = "openrouter" if settings.openrouter_api_key else "ollama"
+        if settings.nvidia_api_key:
+            provider = "nvidia"
+        elif settings.openrouter_api_key:
+            provider = "openrouter"
+        else:
+            provider = "ollama"
 
+    if provider == "nvidia":
+        return await _nvidia(prompt, system, settings)
     if provider == "openrouter":
         return await _openrouter(prompt, system, settings)
     if provider == "ollama":
         return await _ollama(prompt, system, settings)
-    raise ValueError(f"Unknown LLM provider: {provider!r}. Use 'openrouter', 'ollama', or 'auto'.")
+    raise ValueError(
+        f"Unknown LLM provider: {provider!r}. Use 'nvidia', 'openrouter', 'ollama', or 'auto'."
+    )
+
+
+async def _nvidia(prompt: str, system: str, settings) -> str:
+    if not settings.nvidia_api_key:
+        raise ValueError("LLM_PROVIDER=nvidia but NVIDIA_API_KEY is not set")
+    messages = []
+    if system:
+        messages.append({"role": "system", "content": system})
+    messages.append({"role": "user", "content": prompt})
+
+    for attempt in range(5):
+        async with httpx.AsyncClient(timeout=60.0) as client:
+            resp = await client.post(
+                "https://integrate.api.nvidia.com/v1/chat/completions",
+                headers={
+                    "Authorization": f"Bearer {settings.nvidia_api_key}",
+                    "Content-Type": "application/json",
+                },
+                json={"model": settings.nvidia_model, "messages": messages},
+            )
+        if resp.status_code == 429:
+            wait = 10 * (2**attempt)
+            await asyncio.sleep(wait)
+            continue
+        resp.raise_for_status()
+        return resp.json()["choices"][0]["message"]["content"]
+
+    resp.raise_for_status()
+    return resp.json()["choices"][0]["message"]["content"]
 
 
 async def _openrouter(prompt: str, system: str, settings) -> str:

@@ -11,10 +11,13 @@ class Settings(BaseSettings):
     ollama_model: str = "gemma2:9b"
     openrouter_api_key: str = ""
     openrouter_model: str = "meta-llama/llama-3.3-70b-instruct:free"
+    nvidia_api_key: str = ""
+    nvidia_model: str = "meta/llama-3.3-70b-instruct"
     llm_provider: str = "auto"
-    # "auto"       = openrouter if key is set, else ollama
-    # "openrouter" = always use OpenRouter (OPENROUTER_API_KEY required)
-    # "ollama"     = always use local Ollama
+    # "auto"       = nvidia > openrouter > ollama (first key that is set)
+    # "nvidia"     = NVIDIA NIM API (20 RPM free tier, NVIDIA_API_KEY required)
+    # "openrouter" = OpenRouter free tier (OPENROUTER_API_KEY required)
+    # "ollama"     = local Ollama
 
     sentinelsat_user: str = ""
     sentinelsat_pass: str = ""
@@ -40,8 +43,17 @@ class Settings(BaseSettings):
         """Return the model name that will actually be used for LLM calls."""
         provider = self.llm_provider
         if provider == "auto":
-            provider = "openrouter" if self.openrouter_api_key else "ollama"
-        return self.openrouter_model if provider == "openrouter" else self.ollama_model
+            if self.nvidia_api_key:
+                provider = "nvidia"
+            elif self.openrouter_api_key:
+                provider = "openrouter"
+            else:
+                provider = "ollama"
+        if provider == "nvidia":
+            return self.nvidia_model
+        if provider == "openrouter":
+            return self.openrouter_model
+        return self.ollama_model
 
 
 @lru_cache
