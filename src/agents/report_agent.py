@@ -188,8 +188,9 @@ def validate_node(state: ReportAgentState) -> dict:
     if tier not in briefing:
         errors.append(f"Briefing does not mention risk tier '{tier}'")
 
-    # 4. County name present
-    if state["county_name"].split(",")[0].lower() not in briefing:
+    # 4. County name present — check first word only (models vary: "Walton County" vs "county of Walton")
+    county_first_word = state["county_name"].split(",")[0].lower().split()[0]
+    if county_first_word not in briefing:
         errors.append(f"Briefing does not mention county name '{state['county_name']}'")
 
     # 5. At least one citation
