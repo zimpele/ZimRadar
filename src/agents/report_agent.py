@@ -138,9 +138,13 @@ async def draft_narrative_node(state: ReportAgentState) -> dict:
 
     try:
         raw = await llm_complete(prompt, NARRATIVE_SYSTEM)
-        # Strip markdown code fences — some models wrap JSON in ```json...```
+        # Strip leading/trailing fences (```json...```)
         raw = re.sub(r"^```[a-z]*\s*", "", raw.strip())
         raw = re.sub(r"\s*```$", "", raw).strip()
+        # If still not a JSON object, extract first {...} block (handles prose + embedded fences)
+        if not raw.startswith("{"):
+            m = re.search(r"\{.*\}", raw, re.DOTALL)
+            raw = m.group(0) if m else raw
     except Exception as exc:
         logger.error("LLM call failed: %s", exc)
         raw = (
