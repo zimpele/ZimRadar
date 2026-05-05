@@ -138,6 +138,9 @@ async def draft_narrative_node(state: ReportAgentState) -> dict:
 
     try:
         raw = await llm_complete(prompt, NARRATIVE_SYSTEM)
+        # Strip markdown code fences — some models wrap JSON in ```json...```
+        raw = re.sub(r"^```[a-z]*\s*", "", raw.strip())
+        raw = re.sub(r"\s*```$", "", raw).strip()
     except Exception as exc:
         logger.error("LLM call failed: %s", exc)
         raw = (
