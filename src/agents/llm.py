@@ -38,7 +38,7 @@ async def _openrouter(prompt: str, system: str, settings) -> str:
                 timeout=60.0,
             )
         if resp.status_code == 429:
-            wait = 2**attempt
+            wait = 10 * (2**attempt)  # 10, 20, 40, 80, 160s — free tier RPM is low
             await asyncio.sleep(wait)
             continue
         resp.raise_for_status()

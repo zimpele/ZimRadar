@@ -12,7 +12,7 @@ from src.ingestion.base import log_failure
 from src.storage.db import get_async_session
 
 logger = logging.getLogger(__name__)
-CONCURRENCY = 2  # Ollama is single-threaded, limit to avoid overload
+CONCURRENCY = 1  # free OpenRouter tier has low RPM; sequential avoids 429s
 
 
 @task(name="generate-report-for-county", log_prints=True)
