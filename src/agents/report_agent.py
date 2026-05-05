@@ -142,7 +142,9 @@ async def draft_narrative_node(state: ReportAgentState) -> dict:
     full_prompt = f"{NARRATIVE_SYSTEM}\n\n{prompt}"
 
     try:
-        async with httpx.AsyncClient(timeout=120.0) as client:
+        async with httpx.AsyncClient(
+            timeout=httpx.Timeout(connect=10.0, read=600.0, write=30.0, pool=5.0)
+        ) as client:
             resp = await client.post(
                 ollama_url,
                 json={"model": ollama_model, "prompt": full_prompt, "stream": False},
